@@ -94,6 +94,7 @@ export class AdvancedChordPrompt implements Prompt {
 		for (const flag of scaleFlags) {
 			if (flag) scaleLength++;
 		}
+		if (scaleLength === 0) scaleLength = 12;
 
 		let offsets: number[] = [];
 		switch (this._chordTypeSelect.value) {
