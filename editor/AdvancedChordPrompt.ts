@@ -102,7 +102,10 @@ export class AdvancedChordPrompt implements Prompt {
 			case "fifths": offsets = [-4, 0, 4]; break;
 			case "both": offsets = [-4, -2, 0, 2, 4]; break;
 			case "custom":
-				offsets = this._customOffsetsInput.value.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+				offsets = this._customOffsetsInput.value
+				  .split(",")
+				  .map(s => parseInt(s.trim(), 10))
+				  .filter(n => !isNaN(n));
 				if (offsets.length === 0) offsets = [0];
 				break;
 		}
