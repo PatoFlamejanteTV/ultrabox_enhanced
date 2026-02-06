@@ -13,6 +13,7 @@ import { InstrumentExportPrompt } from "./InstrumentExportPrompt";
 import { InstrumentImportPrompt } from "./InstrumentImportPrompt";
 import { EditorConfig, isMobile, prettyNumber, Preset, PresetCategory } from "./EditorConfig";
 import { EuclideanRhythmPrompt } from "./EuclidgenRhythmPrompt";
+import { AdvancedChordPrompt } from "./AdvancedChordPrompt";
 import { ExportPrompt } from "./ExportPrompt";
 import "./Layout"; // Imported here for the sake of ensuring this code is transpiled early.
 import { Instrument, Channel, Synth } from "../synth/synth";
@@ -790,6 +791,7 @@ export class SongEditor {
         option({ value: "transposeUp" }, "Move Notes Up (+ or ⇧+)"),
         option({ value: "transposeDown" }, "Move Notes Down (- or ⇧-)"),
         option({ value: "moveNotesSideways" }, "Move All Notes Sideways... (W)"),
+	    option({ value: "advancedChordCreator" }, "Advanced Chord Creator..."),
 	    option({ value: "generateEuclideanRhythm" }, "Generate Euclidean Rhythm... (E)"),
         option({ value: "beatsPerBar" }, "Change Beats Per Bar... (⇧B)"),
         option({ value: "barCount" }, "Change Song Length... (L)"),
@@ -2094,6 +2096,9 @@ export class SongEditor {
                     break;
                 case "generateEuclideanRhythm":
                     this.prompt = new EuclideanRhythmPrompt(this._doc);
+                    break;
+                case "advancedChordCreator":
+                    this.prompt = new AdvancedChordPrompt(this._doc);
                     break;
                 case "customTheme":
                     this.prompt = new CustomThemePrompt(this._doc, this._patternEditor, this._trackArea, document.getElementById("beepboxEditorContainer")!);
@@ -5068,6 +5073,9 @@ export class SongEditor {
                 break;
             case "generateEuclideanRhythm":
                 this._openPrompt("generateEuclideanRhythm");
+                break;
+            case "advancedChordCreator":
+                this._openPrompt("advancedChordCreator");
                 break;
             case "addExternal":
                 this._openPrompt("addExternal");
