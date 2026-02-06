@@ -6,8 +6,7 @@ import { SongDocument } from "./SongDocument";
 import { Prompt } from "./Prompt";
 import { ColorConfig } from "./ColorConfig";
 import { ChangeGroup } from "./Change";
-import { ChangeEnsurePatternExists, ChangePatternNumbers, ChangeNoteAdded, ChangeNoteTruncate } from "./changes";
-import { Note } from "../synth/synth";
+import { ArpeggioGenerator } from "./ArpeggioGenerator";
 
 const { button, div, h2, input, select, option } = HTML;
 
@@ -114,121 +113,27 @@ export class ArpeggioGeneratorPrompt implements Prompt {
     }
 
     private _whenKeyPressed = (event: KeyboardEvent): void => {
-        if ((<Element>event.target).tagName != "BUTTON" && event.keyCode == 13) {
+        if ((<Element>event.target).tagName !== "BUTTON" && event.key === "Enter") {
             // Enter key
             this._saveChanges();
         }
     }
 
     private _saveChanges = (): void => {
-        const style = this._styleSelect.value;
-        const speed = parseInt(this._speedSelect.value);
-        const range = parseInt(this._rangeSelect.value);
-        const mode = this._modeSelect.value;
-        const density = parseFloat(this._densitySlider.value);
-        const followChords = this._followChordsBox.checked;
-        const lockRoot = this._lockRootBox.checked;
-        const bassSafe = this._bassSafeBox.checked;
-        const barAmount = parseInt(this._barAmountStepper.value);
-
-        const group: ChangeGroup = new ChangeGroup();
-        const startBar = this._doc.selection.boxSelectionActive ? this._doc.selection.boxSelectionBar : this._doc.bar;
-        const channelIndex = this._doc.channel;
-        const beatsPerBar = this._doc.song.beatsPerBar;
-        const partsPerBar = Config.partsPerBeat * beatsPerBar;
-
-        let basePitches: number[] = [];
-        if (mode === "note") {
-            const pattern = this._doc.song.getPattern(channelIndex, startBar);
-            if (pattern && pattern.notes.length > 0) {
-                basePitches = [pattern.notes[0].pitches[0]];
-            } else {
-                basePitches = [Config.keys[this._doc.song.key].basePitch];
-            }
-        } else if (mode === "scale") {
-            const scaleFlags = Config.scales[this._doc.song.scale].flags;
-            const rootPitch = Config.keys[this._doc.song.key].basePitch;
-            for (let i = 0; i < scaleFlags.length; i++) {
-                if (scaleFlags[i]) basePitches.push(rootPitch + i);
-            }
-        }
-
-        for (let b = 0; b < barAmount; b++) {
-            const bar = startBar + b;
-            if (bar >= this._doc.song.barCount) break;
-
-            if (mode === "chord" || (followChords && (mode === "note" || mode === "chord"))) {
-                const pattern = this._doc.song.getPattern(channelIndex, bar);
-                if (pattern && pattern.notes.length > 0) {
-                    const uniquePitches = new Set<number>();
-                    for (const note of pattern.notes) {
-                        for (const p of note.pitches) uniquePitches.add(p);
-                    }
-                    basePitches = Array.from(uniquePitches).sort((a, b) => a - b);
-                } else if (!followChords && basePitches.length === 0) {
-                    basePitches = [Config.keys[this._doc.song.key].basePitch];
-                }
-            }
-
-            if (basePitches.length === 0) continue;
-
-            let arpPitches = [...basePitches];
-            if (range === 2) {
-                arpPitches = arpPitches.concat(basePitches.map(p => p + 12));
-            }
-            arpPitches.sort((a, b) => a - b);
-
-            let sequence: number[] = [];
-            if (style === "up") sequence = arpPitches;
-            else if (style === "down") sequence = [...arpPitches].reverse();
-            else if (style === "upDown") sequence = arpPitches.concat([...arpPitches].reverse().slice(1, -1));
-            else if (style === "random") {
-                sequence = [...arpPitches];
-                // Deterministic shuffle for this bar
-                let seed = bar;
-                for (let i = sequence.length - 1; i > 0; i--) {
-                    seed = (seed * 9301 + 49297) % 233280;
-                    const j = Math.floor((seed / 233280) * (i + 1));
-                    [sequence[i], sequence[j]] = [sequence[j], sequence[i]];
-                }
-            } else if (style === "chiptune") {
-                sequence = arpPitches.slice(0, 3);
-            }
-
-            group.append(new ChangePatternNumbers(this._doc, 0, bar, channelIndex, 1, 1));
-            group.append(new ChangeEnsurePatternExists(this._doc, channelIndex, bar));
-            const pattern = this._doc.song.getPattern(channelIndex, bar);
-            if (pattern == null) continue;
-            group.append(new ChangeNoteTruncate(this._doc, pattern, 0, partsPerBar));
-
-            let seqIdx = 0;
-            let noteIdx = 0;
-            for (let part = 0; part < partsPerBar; part += speed) {
-                // Density check
-                let seed = bar * partsPerBar + part;
-                seed = (seed * 9301 + 49297) % 233280;
-                if (seed / 233280 > density) {
-                    continue;
-                }
-
-                let pitch = sequence[seqIdx % sequence.length];
-
-                if (lockRoot && part % Config.partsPerBeat === 0) {
-                    pitch = arpPitches[0];
-                }
-
-                if (bassSafe && pitch > 48) {
-                    while (pitch > 48) pitch -= 12;
-                }
-
-                const note = new Note(pitch, part, part + speed, Config.noteSizeMax);
-                group.append(new ChangeNoteAdded(this._doc, pattern, note, noteIdx));
-                noteIdx++;
-                seqIdx++;
-            }
-        }
+        const group: ChangeGroup = ArpeggioGenerator.generate({
+            style: this._styleSelect.value,
+            speed: parseInt(this._speedSelect.value),
+            range: parseInt(this._rangeSelect.value),
+            mode: this._modeSelect.value,
+            density: parseFloat(this._densitySlider.value),
+            followChords: this._followChordsBox.checked,
+            lockRoot: this._lockRootBox.checked,
+            bassSafe: this._bassSafeBox.checked,
+            barAmount: parseInt(this._barAmountStepper.value),
+        }, this._doc);
 
         this._doc.prompt = null;
+        this.cleanUp();
         this._doc.record(group, true);
     }
 }
