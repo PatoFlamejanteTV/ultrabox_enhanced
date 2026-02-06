@@ -129,7 +129,7 @@ export class SongPerformance {
 		const currentPart: number = this._doc.synth.playhead * this._doc.song.beatsPerBar * Config.partsPerBeat;
 		if (this._doc.prefs.snapRecordedNotesToRhythm) {
 			const minDivision: number = this._getMinDivision();
-			return Math.round(currentPart / minDivision) * minDivision;
+			return Math.round(Math.round(currentPart / minDivision) * minDivision);
 		}
 		return Math.round(currentPart);
 	}

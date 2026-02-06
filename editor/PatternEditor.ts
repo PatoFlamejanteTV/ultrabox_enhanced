@@ -227,7 +227,7 @@ export class PatternEditor {
 
     private _snapToMinDivision(input: number): number {
         const minDivision: number = this._getMinDivision();
-        return Math.floor(input / minDivision) * minDivision;
+        return Math.round(Math.floor(input / minDivision) * minDivision);
     }
 
     private _updateCursorStatus(): void {
@@ -238,11 +238,11 @@ export class PatternEditor {
         const minDivision: number = this._getMinDivision();
         this._cursor.exactPart = this._mouseX / this._partWidth;
         this._cursor.part =
-            Math.floor(
+            Math.round(Math.floor(
                 Math.max(0,
                     Math.min(this._doc.song.beatsPerBar * Config.partsPerBeat - minDivision, this._cursor.exactPart)
                 )
-                / minDivision) * minDivision;
+                / minDivision) * minDivision);
 
         let foundNote: boolean = false;
 
@@ -1764,7 +1764,7 @@ export class PatternEditor {
                     let scale = this._doc.song.scale == Config.scales.dictionary["Custom"].index ? this._doc.song.scaleCustom : Config.scales[this._doc.song.scale].flags;
                     const notesInScale: number = scale.filter(x => x).length;
                     const pitchRatio: number = this._doc.song.getChannelIsNoise(this._doc.channel) ? 1 : 12 / notesInScale;
-                    const draggedParts: number = Math.round((this._mouseX - this._mouseXStart) / (this._partWidth * minDivision)) * minDivision;
+                    const draggedParts: number = Math.round(Math.round((this._mouseX - this._mouseXStart) / (this._partWidth * minDivision)) * minDivision);
                     const draggedTranspose: number = Math.round((this._mouseYStart - this._mouseY) / (this._pitchHeight * pitchRatio));
                     sequence.append(new ChangeDragSelectedNotes(this._doc, this._doc.channel, pattern, draggedParts, draggedTranspose));
                 }
@@ -1844,7 +1844,7 @@ export class PatternEditor {
                     }
 
                     let defaultLength: number = minDivision;
-                    for (let i: number = minDivision; i <= this._doc.song.beatsPerBar * Config.partsPerBeat; i += minDivision) {
+                    for (let i: number = minDivision; i <= this._doc.song.beatsPerBar * Config.partsPerBeat + 0.1; i += minDivision) {
                         if (minDivision == 1) {
                             if (i < 5) {
                                 // Allow small lengths.
@@ -1870,7 +1870,7 @@ export class PatternEditor {
                         }
 
                         const blessedLength: number = i;
-                        if (blessedLength == directLength) {
+                        if (Math.abs(blessedLength - directLength) < 0.5) {
                             defaultLength = blessedLength;
                             break;
                         }
@@ -1891,10 +1891,10 @@ export class PatternEditor {
 
                     if (backwards) {
                         end = this._cursor.start;
-                        start = end - defaultLength;
+                        start = Math.round(end - defaultLength);
                     } else {
                         start = this._cursor.start;
-                        end = start + defaultLength;
+                        end = Math.round(start + defaultLength);
                     }
                     const continuesLastPattern: boolean = (start < 0 && this._doc.channel < this._doc.song.pitchChannelCount + this._doc.song.noiseChannelCount);
                     if (start < 0) start = 0;
@@ -1939,7 +1939,7 @@ export class PatternEditor {
                     const shift: number = (this._mouseX - this._mouseXStart) / this._partWidth;
 
                     const shiftedPin: NotePin = this._cursor.curNote.pins[this._cursor.nearPinIndex];
-                    let shiftedTime: number = Math.round((this._cursor.curNote.start + shiftedPin.time + shift) / minDivision) * minDivision;
+                    let shiftedTime: number = Math.round(Math.round((this._cursor.curNote.start + shiftedPin.time + shift) / minDivision) * minDivision);
                     const continuesLastPattern: boolean = (shiftedTime < 0.0 && this._doc.channel < this._doc.song.pitchChannelCount + this._doc.song.noiseChannelCount);
                     if (shiftedTime < 0) shiftedTime = 0;
                     if (shiftedTime > this._doc.song.beatsPerBar * Config.partsPerBeat) shiftedTime = this._doc.song.beatsPerBar * Config.partsPerBeat;
@@ -1973,7 +1973,7 @@ export class PatternEditor {
                     const bendPart: number =
                         Math.max(this._cursor.curNote.start,
                             Math.min(this._cursor.curNote.end,
-                                Math.round(this._mouseX / (this._partWidth * minDivision)) * minDivision
+                                Math.round(Math.round(this._mouseX / (this._partWidth * minDivision)) * minDivision)
                             )
                         ) - this._cursor.curNote.start;
 
@@ -2076,9 +2076,9 @@ export class PatternEditor {
                     let bendEnd: number;
                     if (this._mouseX >= this._mouseXStart) {
                         bendStart = Math.max(this._cursor.curNote.start, this._cursor.part);
-                        bendEnd = currentPart + minDivision;
+                        bendEnd = Math.round(currentPart + minDivision);
                     } else {
-                        bendStart = Math.min(this._cursor.curNote.end, this._cursor.part + minDivision);
+                        bendStart = Math.min(this._cursor.curNote.end, Math.round(this._cursor.part + minDivision));
                         bendEnd = currentPart;
                     }
                     if (bendEnd < 0) bendEnd = 0;
