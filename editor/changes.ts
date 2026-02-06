@@ -3545,17 +3545,17 @@ export class ChangePatternRhythm extends ChangeSequence {
             if (thresholds != null) {
                 const beatStart: number = Math.floor(oldTime / Config.partsPerBeat) * Config.partsPerBeat;
                 const remainder: number = oldTime - beatStart;
-                let stepIndex: number = 0;
+                let newTime: number = beatStart;
                 for (const threshold of thresholds) {
                     if (remainder >= threshold) {
-                        stepIndex++;
+                        newTime += minDivision;
                     } else {
                         break;
                     }
                 }
-                return beatStart + Math.round(stepIndex * minDivision);
+                return newTime;
             } else {
-                return Math.round(Math.round(oldTime / minDivision) * minDivision);
+                return Math.round(oldTime / minDivision) * minDivision;
             }
         };
 

@@ -94,7 +94,6 @@ export class AdvancedChordPrompt implements Prompt {
 		for (const flag of scaleFlags) {
 			if (flag) scaleLength++;
 		}
-		if (scaleLength === 0) scaleLength = 12;
 
 		let offsets: number[] = [];
 		switch (this._chordTypeSelect.value) {
@@ -111,6 +110,7 @@ export class AdvancedChordPrompt implements Prompt {
 			case "custom":
 				offsets = this._customOffsetsInput.value.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
 				if (offsets.length === 0) offsets = [0];
+				offsets = offsets.map(o => Math.max(-100, Math.min(100, o)));
 				break;
 		}
 
@@ -118,15 +118,27 @@ export class AdvancedChordPrompt implements Prompt {
 		const finalOffsets = offsets.map(o => o - roleShift);
 
 		for (let channelIndex = selection.boxSelectionChannel; channelIndex < selection.boxSelectionChannel + selection.boxSelectionHeight; channelIndex++) {
-			if (song.getChannelIsMod(channelIndex)) continue;
+			if (song.getChannelIsMod(channelIndex) || song.getChannelIsNoise(channelIndex)) continue;
 
-            const handledPatterns: { [index: number]: boolean } = {};
+            const channelBars = song.channels[channelIndex].bars;
+            const selectedBarStart = selection.boxSelectionBar;
+            const selectedBarEnd = selection.boxSelectionBar + selection.boxSelectionWidth;
+
+            const patternsUsedOutsideSelection = new Set<number>();
+            for (let bar = 0; bar < channelBars.length; bar++) {
+                if (bar >= selectedBarStart && bar < selectedBarEnd) continue;
+                const patternIndex = channelBars[bar];
+                if (patternIndex != 0) patternsUsedOutsideSelection.add(patternIndex);
+            }
+
+            const handledPatterns = new Set<number>();
 
 			for (let bar = selection.boxSelectionBar; bar < selection.boxSelectionBar + selection.boxSelectionWidth; bar++) {
 				const patternIndex = song.channels[channelIndex].bars[bar];
                 if (patternIndex == 0) continue;
-                if (handledPatterns[patternIndex]) continue;
-                handledPatterns[patternIndex] = true;
+                if (patternsUsedOutsideSelection.has(patternIndex)) continue;
+                if (handledPatterns.has(patternIndex)) continue;
+                handledPatterns.add(patternIndex);
 
                 const pattern = song.channels[channelIndex].patterns[patternIndex - 1];
                 const oldNotes = pattern.notes;
@@ -175,6 +187,7 @@ export class AdvancedChordPrompt implements Prompt {
 		const scale = song.scale == Config.scales.dictionary["Custom"].index ? song.scaleCustom : Config.scales[song.scale].flags;
 		let currentPitch = pitch;
 		let remainingSteps = Math.abs(steps);
+		if (remainingSteps > 100) remainingSteps = 100;
 		let direction = Math.sign(steps);
 		const maxPitch = Config.maxPitch;
 
