@@ -89,6 +89,12 @@ export class AdvancedChordPrompt implements Prompt {
 		const song = this._doc.song;
 		const selection = this._doc.selection;
 
+		const scaleFlags = song.scale == Config.scales.dictionary["Custom"].index ? song.scaleCustom : Config.scales[song.scale].flags;
+		let scaleLength = 0;
+		for (const flag of scaleFlags) {
+			if (flag) scaleLength++;
+		}
+
 		let offsets: number[] = [];
 		switch (this._chordTypeSelect.value) {
 			case "triad": offsets = [0, 2, 4]; break;
@@ -97,21 +103,18 @@ export class AdvancedChordPrompt implements Prompt {
 			case "sus2": offsets = [0, 1, 4]; break;
 			case "sus4": offsets = [0, 3, 4]; break;
 			case "power": offsets = [0, 4]; break;
-			case "octave": offsets = [0, 7]; break;
+			case "octave": offsets = [0, scaleLength]; break;
 			case "thirds": offsets = [-2, 0, 2]; break;
 			case "fifths": offsets = [-4, 0, 4]; break;
 			case "both": offsets = [-4, -2, 0, 2, 4]; break;
 			case "custom":
-				offsets = this._customOffsetsInput.value
-				  .split(",")
-				  .map(s => parseInt(s.trim(), 10))
-				  .filter(n => !isNaN(n));
+				offsets = this._customOffsetsInput.value.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
 				if (offsets.length === 0) offsets = [0];
 				break;
 		}
 
 		const roleShift = parseInt(this._rootRoleSelect.value);
-		const finalOffsets = offsets.map(o => o - (offsets[0] + roleShift));
+		const finalOffsets = offsets.map(o => o - roleShift);
 
 		for (let channelIndex = selection.boxSelectionChannel; channelIndex < selection.boxSelectionChannel + selection.boxSelectionHeight; channelIndex++) {
 			if (song.getChannelIsMod(channelIndex)) continue;
