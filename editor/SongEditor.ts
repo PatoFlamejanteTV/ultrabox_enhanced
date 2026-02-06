@@ -13,6 +13,7 @@ import { InstrumentExportPrompt } from "./InstrumentExportPrompt";
 import { InstrumentImportPrompt } from "./InstrumentImportPrompt";
 import { EditorConfig, isMobile, prettyNumber, Preset, PresetCategory } from "./EditorConfig";
 import { EuclideanRhythmPrompt } from "./EuclidgenRhythmPrompt";
+import { AdvancedChordPrompt } from "./AdvancedChordPrompt";
 import { ArpeggioGeneratorPrompt } from "./ArpeggioGeneratorPrompt";
 import { ExportPrompt } from "./ExportPrompt";
 import "./Layout"; // Imported here for the sake of ensuring this code is transpiled early.
@@ -791,6 +792,7 @@ export class SongEditor {
         option({ value: "transposeUp" }, "Move Notes Up (+ or ⇧+)"),
         option({ value: "transposeDown" }, "Move Notes Down (- or ⇧-)"),
         option({ value: "moveNotesSideways" }, "Move All Notes Sideways... (W)"),
+	    option({ value: "advancedChordCreator" }, "Advanced Chord Creator..."),
 	    option({ value: "generateEuclideanRhythm" }, "Generate Euclidean Rhythm... (E)"),
 	    option({ value: "generateArpeggio" }, "Generate Arpeggio... (⇧G)"),
         option({ value: "beatsPerBar" }, "Change Beats Per Bar... (⇧B)"),
@@ -2097,6 +2099,8 @@ export class SongEditor {
                 case "generateEuclideanRhythm":
                     this.prompt = new EuclideanRhythmPrompt(this._doc);
                     break;
+                case "advancedChordCreator":
+                    this.prompt = new AdvancedChordPrompt(this._doc);
                 case "generateArpeggio":
                     this.prompt = new ArpeggioGeneratorPrompt(this._doc);
                     break;
@@ -5081,6 +5085,8 @@ export class SongEditor {
             case "generateEuclideanRhythm":
                 this._openPrompt("generateEuclideanRhythm");
                 break;
+            case "advancedChordCreator":
+                this._openPrompt("advancedChordCreator");
             case "generateArpeggio":
                 this._openPrompt("generateArpeggio");
                 break;
