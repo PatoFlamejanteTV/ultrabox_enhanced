@@ -1840,11 +1840,11 @@ export class PatternEditor {
                         directLength = this._cursor.start - currentPart;
                     } else {
                         backwards = false;
-                        directLength = Math.round(currentPart - this._cursor.start + minDivision);
+                        directLength = currentPart - this._cursor.start + minDivision;
                     }
 
                     let defaultLength: number = minDivision;
-                    for (let i: number = minDivision; i <= this._doc.song.beatsPerBar * Config.partsPerBeat; i += minDivision) {
+                    for (let i: number = minDivision; i <= this._doc.song.beatsPerBar * Config.partsPerBeat + 0.1; i += minDivision) {
                         if (minDivision == 1) {
                             if (i < 5) {
                                 // Allow small lengths.
@@ -1870,7 +1870,7 @@ export class PatternEditor {
                         }
 
                         const blessedLength: number = i;
-                        if (blessedLength == directLength) {
+                        if (Math.abs(blessedLength - directLength) < 0.5) {
                             defaultLength = blessedLength;
                             break;
                         }
@@ -1891,10 +1891,10 @@ export class PatternEditor {
 
                     if (backwards) {
                         end = this._cursor.start;
-                        start = end - defaultLength;
+                        start = Math.round(end - defaultLength);
                     } else {
                         start = this._cursor.start;
-                        end = start + defaultLength;
+                        end = Math.round(start + defaultLength);
                     }
                     const continuesLastPattern: boolean = (start < 0 && this._doc.channel < this._doc.song.pitchChannelCount + this._doc.song.noiseChannelCount);
                     if (start < 0) start = 0;
