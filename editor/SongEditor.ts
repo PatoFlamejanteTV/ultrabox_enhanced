@@ -1048,7 +1048,9 @@ export class SongEditor {
     private readonly _drumsetZoom: HTMLButtonElement = button({ style: "margin-left:0em; padding-left:0.3em; margin-right:0.5em; height:1.5em; max-width: 16px;", onclick: () => this._openPrompt("drumsetSettings") }, "+");
     private readonly _modulatorGroup: HTMLElement = div({ class: "editor-controls" });
     private readonly _modNameRows: HTMLElement[];
+    private readonly _modChannelTexts: HTMLElement[];
     private readonly _modChannelBoxes: HTMLSelectElement[];
+    private readonly _modInstrumentTexts: HTMLElement[];
     private readonly _modInstrumentBoxes: HTMLSelectElement[];
     private readonly _modSetRows: HTMLElement[];
     private readonly _modSetBoxes: HTMLSelectElement[];
@@ -1515,7 +1517,9 @@ export class SongEditor {
         }
 
         this._modNameRows = [];
+        this._modChannelTexts = [];
         this._modChannelBoxes = [];
+        this._modInstrumentTexts = [];
         this._modInstrumentBoxes = [];
         this._modSetRows = [];
         this._modSetBoxes = [];
@@ -1527,10 +1531,13 @@ export class SongEditor {
             let modChannelBox: HTMLSelectElement = select({ style: "width: 100%; color: currentColor; text-overflow:ellipsis;" });
             let modInstrumentBox: HTMLSelectElement = select({ style: "width: 100%; color: currentColor;" });
 
+            let modChannelText: HTMLDivElement = div({ class: "tip", style: "width: 10%; max-width: 5.4em;", id: "modChannelText" + mod, onclick: () => this._openPrompt("modChannel") }, "Ch:");
+            let modInstrumentText: HTMLDivElement = div({ class: "tip", style: "width: 1.2em; margin-left: 0.8em;", id: "modInstrumentText" + mod, onclick: () => this._openPrompt("modInstrument") }, "Ins:");
+
             let modNameRow: HTMLDivElement = div({ class: "operatorRow", style: "height: 1em; margin-bottom: 0.65em;" },
-                div({ class: "tip", style: "width: 10%; max-width: 5.4em;", id: "modChannelText" + mod, onclick: () => this._openPrompt("modChannel") }, "Ch:"),
+                modChannelText,
                 div({ class: "selectContainer", style: 'width: 35%;' }, modChannelBox),
-                div({ class: "tip", style: "width: 1.2em; margin-left: 0.8em;", id: "modInstrumentText" + mod, onclick: () => this._openPrompt("modInstrument") }, "Ins:"),
+                modInstrumentText,
                 div({ class: "selectContainer", style: "width: 10%;" }, modInstrumentBox),
             );
 
@@ -1548,7 +1555,9 @@ export class SongEditor {
                 SVG.path({ d: "M150 65 c0 -8 -7 -15 -15 -15 -8 0 -15 -4 -15 -10 0 -14 23 -13 38 2 15 15 16 38 2 38 -5 0 -10 -7 -10 -15z" })]);
 
             this._modNameRows.push(modNameRow);
+            this._modChannelTexts.push(modChannelText);
             this._modChannelBoxes.push(modChannelBox);
+            this._modInstrumentTexts.push(modInstrumentText);
             this._modInstrumentBoxes.push(modInstrumentBox);
             this._modSetRows.push(modSetRow);
             this._modSetBoxes.push(modSetBox);
@@ -2101,6 +2110,7 @@ export class SongEditor {
                     break;
                 case "advancedChordCreator":
                     this.prompt = new AdvancedChordPrompt(this._doc);
+                    break;
                 case "generateArpeggio":
                     this.prompt = new ArpeggioGeneratorPrompt(this._doc);
                     break;
@@ -3275,16 +3285,16 @@ export class SongEditor {
                 //Hide instrument select if channel is "none" or "song"
                 if (instrument.modChannels[mod] < 0) {
                     ((this._modInstrumentBoxes[mod].parentElement) as HTMLDivElement).style.display = "none";
-                    $("#modInstrumentText" + mod).get(0).style.display = "none";
-                    $("#modChannelText" + mod).get(0).innerText = "Channel:";
+                    this._modInstrumentTexts[mod].style.display = "none";
+                    this._modChannelTexts[mod].innerText = "Channel:";
 
                     //Hide setting select if channel is "none"
                     if (instrument.modChannels[mod] == -2) {
-                        $("#modSettingText" + mod).get(0).style.display = "none";
+                        this._modSetRows[mod].style.display = "none";
                         ((this._modSetBoxes[mod].parentElement) as HTMLDivElement).style.display = "none";
                     }
                     else {
-                        $("#modSettingText" + mod).get(0).style.display = "";
+                        this._modSetRows[mod].style.display = "";
                         ((this._modSetBoxes[mod].parentElement) as HTMLDivElement).style.display = "";
                     }
 
@@ -3294,9 +3304,9 @@ export class SongEditor {
                 }
                 else {
                     ((this._modInstrumentBoxes[mod].parentElement) as HTMLDivElement).style.display = (channel.instruments.length > 1) ? "" : "none";
-                    $("#modInstrumentText" + mod).get(0).style.display = (channel.instruments.length > 1) ? "" : "none";
-                    $("#modChannelText" + mod).get(0).innerText = (channel.instruments.length > 1) ? "Ch:" : "Channel:";
-                    $("#modSettingText" + mod).get(0).style.display = "";
+                    this._modInstrumentTexts[mod].style.display = (channel.instruments.length > 1) ? "" : "none";
+                    this._modChannelTexts[mod].innerText = (channel.instruments.length > 1) ? "Ch:" : "Channel:";
+                    this._modSetRows[mod].style.display = "";
                     ((this._modSetBoxes[mod].parentElement) as HTMLDivElement).style.display = "";
 
                     this._modTargetIndicators[mod].style.setProperty("fill", ColorConfig.indicatorPrimary);
@@ -3305,8 +3315,8 @@ export class SongEditor {
 
                 let filterType: string = Config.modulators[instrument.modulators[mod]].name;
                 if (filterType == "eq filter" || filterType == "note filter") {
-                    $("#modFilterText" + mod).get(0).style.display = "";
-                    $("#modSettingText" + mod).get(0).style.setProperty("margin-bottom", "2px");
+                    this._modFilterRows[mod].style.display = "";
+                    this._modSetRows[mod].style.setProperty("margin-bottom", "2px");
 
                     let useInstrument: number = instrument.modInstruments[mod];
                     let modChannel: Channel = this._doc.song.channels[Math.max(0, instrument.modChannels[mod])];
@@ -3370,8 +3380,8 @@ export class SongEditor {
 
 
                 } else {
-                    $("#modFilterText" + mod).get(0).style.display = "none";
-                    $("#modSettingText" + mod).get(0).style.setProperty("margin-bottom", "0.9em");
+                    this._modFilterRows[mod].style.display = "none";
+                    this._modSetRows[mod].style.setProperty("margin-bottom", "0.9em");
 
                 }
             }
@@ -5087,6 +5097,7 @@ export class SongEditor {
                 break;
             case "advancedChordCreator":
                 this._openPrompt("advancedChordCreator");
+                break;
             case "generateArpeggio":
                 this._openPrompt("generateArpeggio");
                 break;
