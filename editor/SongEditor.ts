@@ -13,6 +13,7 @@ import { InstrumentExportPrompt } from "./InstrumentExportPrompt";
 import { InstrumentImportPrompt } from "./InstrumentImportPrompt";
 import { EditorConfig, isMobile, prettyNumber, Preset, PresetCategory } from "./EditorConfig";
 import { EuclideanRhythmPrompt } from "./EuclidgenRhythmPrompt";
+import { ArpeggioGeneratorPrompt } from "./ArpeggioGeneratorPrompt";
 import { ExportPrompt } from "./ExportPrompt";
 import "./Layout"; // Imported here for the sake of ensuring this code is transpiled early.
 import { Instrument, Channel, Synth } from "../synth/synth";
@@ -791,6 +792,7 @@ export class SongEditor {
         option({ value: "transposeDown" }, "Move Notes Down (- or ⇧-)"),
         option({ value: "moveNotesSideways" }, "Move All Notes Sideways... (W)"),
 	    option({ value: "generateEuclideanRhythm" }, "Generate Euclidean Rhythm... (E)"),
+	    option({ value: "generateArpeggio" }, "Generate Arpeggio... (⇧G)"),
         option({ value: "beatsPerBar" }, "Change Beats Per Bar... (⇧B)"),
         option({ value: "barCount" }, "Change Song Length... (L)"),
         option({ value: "channelSettings" }, "Channel Settings... (Q)"),
@@ -2094,6 +2096,9 @@ export class SongEditor {
                     break;
                 case "generateEuclideanRhythm":
                     this.prompt = new EuclideanRhythmPrompt(this._doc);
+                    break;
+                case "generateArpeggio":
+                    this.prompt = new ArpeggioGeneratorPrompt(this._doc);
                     break;
                 case "customTheme":
                     this.prompt = new CustomThemePrompt(this._doc, this._patternEditor, this._trackArea, document.getElementById("beepboxEditorContainer")!);
@@ -3989,6 +3994,13 @@ export class SongEditor {
                     event.preventDefault();
                 }
                 break;
+            case 71: // g (+shift: generate arpeggio)
+                if (canPlayNotes) break;
+                if (event.shiftKey) {
+                    this._openPrompt("generateArpeggio");
+                    event.preventDefault();
+                }
+                break;
             case 69: // e (+shift: eq filter settings)
                 if (canPlayNotes) break;
                 if (event.shiftKey) {
@@ -5068,6 +5080,9 @@ export class SongEditor {
                 break;
             case "generateEuclideanRhythm":
                 this._openPrompt("generateEuclideanRhythm");
+                break;
+            case "generateArpeggio":
+                this._openPrompt("generateArpeggio");
                 break;
             case "addExternal":
                 this._openPrompt("addExternal");
