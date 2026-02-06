@@ -41,8 +41,8 @@
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
-		"@types/jquery": "^3.5.5",
-		"@types/select2": "^4.0.53",
+		"@types/jquery": "^3.5.33",
+		"@types/select2": "^4.0.63",
 		"imperative-html": "^0.1.0",
 		"select2": "^4.0.13"
 	}
