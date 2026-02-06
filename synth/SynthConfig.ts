@@ -939,8 +939,8 @@ export class Config {
 		{ name: "÷8", stepsPerBeat: 8, /*ticksPerArpeggio: 3, arpeggioPatterns: [[0], [0, 1], [0, 1, 2, 1], [0, 1, 2, 3]]*/ roundUpThresholds: null },
         { name: "÷12", stepsPerBeat: 12, /*ticksPerArpeggio: 3, arpeggioPatterns: [[0], [0, 1], [0, 1, 2, 1]]*/ roundUpThresholds: null },
 		{ name: "freehand", stepsPerBeat: 24, /*ticksPerArpeggio: 3, arpeggioPatterns: [[0], [0, 1], [0, 1, 2, 1], [0, 1, 2, 3]]*/ roundUpThresholds: null },
-		{ name: "÷5", stepsPerBeat: 5, roundUpThresholds: null },
-		{ name: "÷7", stepsPerBeat: 7, roundUpThresholds: null },
+		{ name: "÷5", stepsPerBeat: 5, roundUpThresholds: [2, 7, 12, 17, 22] },
+		{ name: "÷7", stepsPerBeat: 7, roundUpThresholds: [2, 5, 9, 12, 15, 19, 22] },
 	]);
 
     public static readonly instrumentTypeNames: ReadonlyArray<string> = ["chip", "FM", "noise", "spectrum", "drumset", "harmonics", "PWM", "Picked String", "supersaw", "custom chip", "mod", "FM6op"];
