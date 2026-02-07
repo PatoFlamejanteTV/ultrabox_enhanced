@@ -88,8 +88,7 @@ export class CustomChipCanvas {
             var x = (event.clientX || event.pageX) - this.canvas.getBoundingClientRect().left;
             var y = Math.floor((event.clientY || event.pageY) - this.canvas.getBoundingClientRect().top);
 
-            if (y < 2) y = 2;
-            if (y > 50) y = 50;
+            y = Math.max(2, Math.min(50, y));
 
             var ctx = this.canvas.getContext("2d") as CanvasRenderingContext2D;
 
