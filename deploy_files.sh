@@ -27,6 +27,12 @@ cp website/nintaribox_samples.js to_deploy/player
 cp website/index.html to_deploy/
 cp website/favicon.ico to_deploy/
 cp website/icon_maskable_192.png to_deploy/
+cp website/apple-touch-icon.png to_deploy/
+cp website/browserconfig.xml to_deploy/
+cp website/icon_shadow_192.png to_deploy/
+cp website/icon_windows_150.png to_deploy/
+cp website/manifest.webmanifest to_deploy/
+cp website/robots.txt to_deploy/
 cp website/404.html to_deploy/
 cp website/404.html to_deploy/player/
 cp website/credits.html to_deploy/
