@@ -119,30 +119,7 @@ export class RhythmicGenerator {
 		steps = Math.max(1, steps);
 		pulses = Math.max(0, Math.min(steps, pulses));
 
-		let columns: number[][] = [];
-		for (let step = 0; step < steps; step++) {
-			columns.push([step < pulses ? 1 : 0]);
-		}
-
-		let a = pulses;
-		let b = steps - pulses;
-		while (b > 1) {
-			const amountToMove = Math.min(a, b);
-			for (let i = 0; i < amountToMove; i++) {
-				const moved = columns.pop()!;
-				for (const v of moved) columns[i].push(v);
-			}
-			if (a > b) {
-				a = b;
-				b = a - b; // This is not exactly Bjorklund but Euclidean-like
-				// Bjorklund is more about grouping.
-			} else {
-				b = b - a;
-			}
-			// Toussaint's actual Bjorklund is a bit different, let's use a simpler iterative approach for Euclidean distribution
-		}
-
-		// Let's use the Bresenham-based Euclidean algorithm for better reliability
+		// Use the Bresenham-based Euclidean algorithm for reliability
 		const pattern: number[] = [];
 		let accumulator = 0;
 		for (let i = 0; i < steps; i++) {

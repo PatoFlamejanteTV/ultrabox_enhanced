@@ -246,10 +246,30 @@ export class AlgorithmicRhythmPrompt implements Prompt {
 			generateFadingNotes: false,
 		}];
 
-		const savedData: any = JSON.parse(String(window.localStorage.getItem(this._localStorageKey)));
-		if (savedData != null && savedData.sequences) {
-			this._sequences = savedData.sequences;
-			this._barAmount = Math.max(1, Math.min(this._barsAvailable, savedData.barAmount ?? 1));
+		let savedData: any = null;
+		try {
+			savedData = JSON.parse(String(window.localStorage.getItem(this._localStorageKey)));
+		} catch (error) {
+			console.error("Failed to parse saved algorithmic rhythm data:", error);
+		}
+
+		if (savedData != null && Array.isArray(savedData.sequences)) {
+			this._sequences = savedData.sequences.map((s: any) => ({
+				mode: s.mode ?? RhythmMode.Euclidean,
+				steps: Math.max(this._minSteps, Math.min(this._maxSteps, s.steps ?? this._minSteps)),
+				density: Math.min(1, Math.max(0, s.density ?? 0.5)),
+				rotation: Math.max(0, s.rotation ?? 0),
+				complexity: s.complexity ?? RhythmComplexity.Suave,
+				style: s.style ?? RhythmStyle.Regular,
+				seed: s.seed ?? Math.floor(Math.random() * 1000),
+				stepSizeNumerator: Math.max(1, Math.min(Config.partsPerBeat, s.stepSizeNumerator ?? 1)),
+				stepSizeDenominator: Math.max(1, Math.min(Config.partsPerBeat, s.stepSizeDenominator ?? 4)),
+				channel: Math.max(0, Math.min(this._maxChannel, s.channel ?? 0)),
+				pitch: Math.max(0, Math.min(Config.maxPitch, s.pitch ?? 0)),
+				invert: !!s.invert,
+				generateFadingNotes: !!s.generateFadingNotes,
+			}));
+			this._barAmount = Math.max(1, Math.min(this._barsAvailable, Number.isFinite(savedData.barAmount) ? savedData.barAmount : 1));
 		}
 
 		this._generateAllSequences();
@@ -319,7 +339,6 @@ export class AlgorithmicRhythmPrompt implements Prompt {
 		}
 
 		let allNewNotesByChannel: Map<number, Note[][]> = new Map();
-		let pitchesToBeGenerated: Map<number, boolean> = new Map();
 
 		for (let bar = firstBar; bar < lastBar; bar++) {
 			const relativeBar = bar - firstBar;
@@ -330,12 +349,11 @@ export class AlgorithmicRhythmPrompt implements Prompt {
 				const generatedSequence = this._generatedSequences[sequenceIndex];
 				if (generatedSequence.length === 0) continue;
 
-				const stepSize = sequence.stepSizeNumerator / sequence.stepSizeDenominator;
+				const stepSize = sequence.stepSizeNumerator / Math.max(1, sequence.stepSizeDenominator);
 				const pitch = sequence.pitch;
 				const channelIndex = sequence.channel;
 				const invert = sequence.invert;
 				const generateFadingNotes = sequence.generateFadingNotes;
-				pitchesToBeGenerated.set(pitch, true);
 
 				if (!allNewNotesByChannel.has(channelIndex)) {
 					const channelNotes: Note[][] = [];
@@ -424,13 +442,17 @@ export class AlgorithmicRhythmPrompt implements Prompt {
 	}
 
 	private _whenStepsChanges = (): void => {
-		this._sequences[this._sequenceIndex].steps = Math.max(this._minSteps, Math.min(this._maxSteps, parseInt(this._stepsStepper.value)));
+		const value = parseInt(this._stepsStepper.value);
+		this._sequences[this._sequenceIndex].steps = Math.max(this._minSteps, Math.min(this._maxSteps, isNaN(value) ? this._minSteps : value));
+		this._stepsStepper.value = this._sequences[this._sequenceIndex].steps + "";
 		this._generateCurrentSequence();
 		this._render();
 	}
 
 	private _whenRotationChanges = (): void => {
-		this._sequences[this._sequenceIndex].rotation = parseInt(this._rotationStepper.value);
+		const value = parseInt(this._rotationStepper.value);
+		this._sequences[this._sequenceIndex].rotation = isNaN(value) ? 0 : Math.max(0, value);
+		this._rotationStepper.value = this._sequences[this._sequenceIndex].rotation + "";
 		this._generateCurrentSequence();
 		this._render();
 	}
@@ -448,7 +470,9 @@ export class AlgorithmicRhythmPrompt implements Prompt {
 	}
 
 	private _whenSeedChanges = (): void => {
-		this._sequences[this._sequenceIndex].seed = parseInt(this._seedInput.value);
+		const value = parseInt(this._seedInput.value);
+		this._sequences[this._sequenceIndex].seed = isNaN(value) ? 0 : Math.max(0, value);
+		this._seedInput.value = this._sequences[this._sequenceIndex].seed + "";
 		this._generateCurrentSequence();
 		this._render();
 	}
@@ -461,18 +485,26 @@ export class AlgorithmicRhythmPrompt implements Prompt {
 	}
 
 	private _whenChannelChanges = (): void => {
-		this._sequences[this._sequenceIndex].channel = parseInt(this._channelStepper.value) - 1;
+		const value = parseInt(this._channelStepper.value);
+		this._sequences[this._sequenceIndex].channel = Math.max(0, Math.min(this._maxChannel, (isNaN(value) ? 1 : value) - 1));
+		this._channelStepper.value = (this._sequences[this._sequenceIndex].channel + 1) + "";
 		this._render();
 	}
 
 	private _whenPitchChanges = (): void => {
-		this._sequences[this._sequenceIndex].pitch = parseInt(this._pitchStepper.value);
+		const value = parseInt(this._pitchStepper.value);
+		this._sequences[this._sequenceIndex].pitch = Math.max(0, Math.min(Config.maxPitch, isNaN(value) ? 0 : value));
+		this._pitchStepper.value = this._sequences[this._sequenceIndex].pitch + "";
 		this._render();
 	}
 
 	private _whenStepSizeChanges = (): void => {
-		this._sequences[this._sequenceIndex].stepSizeNumerator = parseInt(this._stepSizeNumeratorStepper.value);
-		this._sequences[this._sequenceIndex].stepSizeDenominator = parseInt(this._stepSizeDenominatorStepper.value);
+		const num = parseInt(this._stepSizeNumeratorStepper.value);
+		const den = parseInt(this._stepSizeDenominatorStepper.value);
+		this._sequences[this._sequenceIndex].stepSizeNumerator = Math.max(1, Math.min(Config.partsPerBeat, isNaN(num) ? 1 : num));
+		this._sequences[this._sequenceIndex].stepSizeDenominator = Math.max(1, Math.min(Config.partsPerBeat, isNaN(den) ? 1 : den));
+		this._stepSizeNumeratorStepper.value = this._sequences[this._sequenceIndex].stepSizeNumerator + "";
+		this._stepSizeDenominatorStepper.value = this._sequences[this._sequenceIndex].stepSizeDenominator + "";
 		this._render();
 	}
 
@@ -502,14 +534,15 @@ export class AlgorithmicRhythmPrompt implements Prompt {
 	}
 
 	private _whenSelectSequence = (event: MouseEvent): void => {
-		if (event.target == this._sequenceAddButton) {
+		const btn = (event.target as HTMLElement).closest("button");
+		if (btn == this._sequenceAddButton) {
 			const s = this._sequences[this._sequenceIndex];
 			this._sequences.push({ ...s, seed: Math.floor(Math.random() * 1000) });
 			this._sequenceIndex = this._sequences.length - 1;
 			this._generateCurrentSequence();
 			this._refreshSequenceWidgets();
 			this._render();
-		} else if (event.target == this._sequenceRemoveButton) {
+		} else if (btn == this._sequenceRemoveButton) {
 			if (this._sequences.length > 1) {
 				this._sequences.splice(this._sequenceIndex, 1);
 				this._generatedSequences.splice(this._sequenceIndex, 1);
@@ -518,7 +551,7 @@ export class AlgorithmicRhythmPrompt implements Prompt {
 				this._render();
 			}
 		} else {
-			const index = this._sequenceButtons.indexOf(event.target as HTMLButtonElement);
+			const index = this._sequenceButtons.indexOf(btn as HTMLButtonElement);
 			if (index !== -1) {
 				this._sequenceIndex = index;
 				this._refreshSequenceWidgets();
@@ -593,7 +626,8 @@ export class AlgorithmicRhythmPrompt implements Prompt {
 
 	private _renderLabel = (): void => {
 		const s = this._sequences[this._sequenceIndex];
-		const pitchName = Config.keys[(s.pitch + Config.keys[this._doc.song.key].basePitch) % 12].name;
+		const pitchIndex = ((s.pitch + Config.keys[this._doc.song.key].basePitch) % 12 + 12) % 12;
+		const pitchName = Config.keys[pitchIndex].name;
 		this._barPreviewLabel.innerText = `Bar ${this._barPreviewBarIndex + 1}, Ch ${s.channel + 1}, Pitch ${pitchName}${Math.floor(s.pitch / 12)}`;
 	}
 
