@@ -2755,6 +2755,27 @@ export class Instrument {
         return 440.0 * Math.pow(2.0, (pitch - 69.0) / 12.0);
     }
 
+    public static getTunedPitch(pitch: number, basePitch: number, scaleIndex: number): number {
+        const scale = Config.scales[scaleIndex];
+        const relativePitch = pitch - basePitch;
+        if (scale.offsets) {
+            const ppo = scale.offsets.length;
+            const octave = Math.floor(relativePitch / ppo);
+            const noteIndex = ((relativePitch % ppo) + ppo) % ppo;
+            const i1 = Math.floor(noteIndex);
+            const i2 = (i1 + 1) % ppo;
+            const frac = noteIndex - i1;
+            const o1 = scale.offsets[i1];
+            let o2 = scale.offsets[i2];
+            if (i2 == 0) o2 += 12; // Handle octave wrap in offsets
+            const tunedRelative = octave * 12 + o1 + (o2 - o1) * frac;
+            return basePitch + tunedRelative;
+        } else if (scale.stepSize) {
+            return basePitch + relativePitch * scale.stepSize;
+        }
+        return pitch;
+    }
+
     public addEnvelope(target: number, index: number, envelope: number): void {
         let makeEmpty: boolean = false;
         if (!this.supportsEnvelopeTarget(target, index)) makeEmpty = true;
@@ -7738,8 +7759,8 @@ class InstrumentState {
             }
 
             const basePitch: number = Config.keys[synth.song!.key].basePitch + (Config.pitchesPerOctave * synth.song!.octave); // TODO: What if there's a key change mid-song?
-            const freqStart: number = Instrument.frequencyFromPitch(basePitch + 60) * Math.pow(2.0, (Config.bitcrusherFreqRange - 1 - freqSettingStart) * Config.bitcrusherOctaveStep);
-            const freqEnd: number = Instrument.frequencyFromPitch(basePitch + 60) * Math.pow(2.0, (Config.bitcrusherFreqRange - 1 - freqSettingEnd) * Config.bitcrusherOctaveStep);
+            const freqStart: number = Instrument.frequencyFromPitch(Instrument.getTunedPitch(basePitch + 60, basePitch, synth.song!.scale)) * Math.pow(2.0, (Config.bitcrusherFreqRange - 1 - freqSettingStart) * Config.bitcrusherOctaveStep);
+            const freqEnd: number = Instrument.frequencyFromPitch(Instrument.getTunedPitch(basePitch + 60, basePitch, synth.song!.scale)) * Math.pow(2.0, (Config.bitcrusherFreqRange - 1 - freqSettingEnd) * Config.bitcrusherOctaveStep);
             const phaseDeltaStart: number = Math.min(1.0, freqStart / samplesPerSecond);
             const phaseDeltaEnd: number = Math.min(1.0, freqEnd / samplesPerSecond);
             this.bitcrusherPhaseDelta = phaseDeltaStart;
@@ -10815,8 +10836,8 @@ export class Synth {
                 const interval = Config.operatorCarrierInterval[associatedCarrierIndex] + arpeggioInterval;
                 const pitchStart: number = basePitch + (pitch + intervalStart) * intervalScale + interval;
                 const pitchEnd: number = basePitch + (pitch + intervalEnd) * intervalScale + interval;
-                const baseFreqStart: number = Instrument.frequencyFromPitch(pitchStart);
-                const baseFreqEnd: number = Instrument.frequencyFromPitch(pitchEnd);
+                const baseFreqStart: number = Instrument.frequencyFromPitch(Instrument.getTunedPitch(pitchStart, basePitch, song.scale));
+                const baseFreqEnd: number = Instrument.frequencyFromPitch(Instrument.getTunedPitch(pitchEnd, basePitch, song.scale));
                 const hzOffset: number = Config.operatorFrequencies[instrument.operators[i].frequency].hzOffset;
                 const targetFreqStart: number = freqMult * baseFreqStart + hzOffset;
                 const targetFreqEnd: number = freqMult * baseFreqEnd + hzOffset;
@@ -10928,10 +10949,6 @@ export class Synth {
 
 
         } else {
-            const freqEndRatio: number = Math.pow(2.0, (intervalEnd - intervalStart) * intervalScale / 12.0);
-			const basePhaseDeltaScale: number = Math.pow(freqEndRatio, 1.0 / roundedSamplesPerTick);
-
-
             let pitch: number = tone.pitches[0];
             if (tone.pitchCount > 1 && (chord.arpeggiates || chord.customInterval)) {
                 const arpeggio: number = Math.floor(instrumentState.arpTime / Config.ticksPerArpeggio);
@@ -10946,6 +10963,8 @@ export class Synth {
 
             const startPitch: number = basePitch + (pitch + intervalStart) * intervalScale;
             const endPitch: number = basePitch + (pitch + intervalEnd) * intervalScale;
+            const freqEndRatio: number = Instrument.frequencyFromPitch(Instrument.getTunedPitch(endPitch, basePitch, song.scale)) / Instrument.frequencyFromPitch(Instrument.getTunedPitch(startPitch, basePitch, song.scale));
+			const basePhaseDeltaScale: number = Math.pow(freqEndRatio, 1.0 / roundedSamplesPerTick);
             let pitchExpressionStart: number;
             // TODO: use the second element of prevPitchExpressions for the unison voice, compute a separate expression delta for it.
             if (tone.prevPitchExpressions[0] != null) {
@@ -11007,7 +11026,7 @@ export class Synth {
 
             }
 
-            const startFreq: number = Instrument.frequencyFromPitch(startPitch);
+            const startFreq: number = Instrument.frequencyFromPitch(Instrument.getTunedPitch(startPitch, basePitch, song.scale));
             if (instrument.type == InstrumentType.chip || instrument.type == InstrumentType.customChipWave || instrument.type == InstrumentType.harmonics || instrument.type == InstrumentType.pickedString || instrument.type == InstrumentType.spectrum || instrument.type == InstrumentType.pwm || instrument.type == InstrumentType.noise) {
                 // These instruments have two waves at different frequencies for the unison feature.
                 //const unison: Unison = Config.unisons[instrument.unison];
