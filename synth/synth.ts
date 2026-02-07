@@ -278,41 +278,44 @@ const base64IntToCharCode: ReadonlyArray<number> = [48, 49, 50, 51, 52, 53, 54, 
 const base64CharCodeToInt: ReadonlyArray<number> = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 62, 62, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 0, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 0, 0, 0, 0, 63, 0, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 0, 0, 0, 0, 0]; // 62 could be represented by either "-" or "." for historical reasons. New songs should use "-".
 
 class BitFieldReader {
-    private _bits: number[] = [];
+    private _bits: Uint8Array;
     private _readIndex: number = 0;
 
     constructor(source: string, startIndex: number, stopIndex: number) {
+        this._bits = new Uint8Array((stopIndex - startIndex) * 6);
+        let bitIndex = 0;
         for (let i: number = startIndex; i < stopIndex; i++) {
             const value: number = base64CharCodeToInt[source.charCodeAt(i)];
-            this._bits.push((value >> 5) & 0x1);
-            this._bits.push((value >> 4) & 0x1);
-            this._bits.push((value >> 3) & 0x1);
-            this._bits.push((value >> 2) & 0x1);
-            this._bits.push((value >> 1) & 0x1);
-            this._bits.push(value & 0x1);
+            this._bits[bitIndex++] = (value >> 5) & 0x1;
+            this._bits[bitIndex++] = (value >> 4) & 0x1;
+            this._bits[bitIndex++] = (value >> 3) & 0x1;
+            this._bits[bitIndex++] = (value >> 2) & 0x1;
+            this._bits[bitIndex++] = (value >> 1) & 0x1;
+            this._bits[bitIndex++] = value & 0x1;
         }
     }
 
     public read(bitCount: number): number {
         let result: number = 0;
+        const bits = this._bits;
         while (bitCount > 0) {
-            result = result << 1;
-            result += this._bits[this._readIndex++];
+            result = (result << 1) + bits[this._readIndex++];
             bitCount--;
         }
         return result;
     }
 
     public readLongTail(minValue: number, minBits: number): number {
+        const bits = this._bits;
         let result: number = minValue;
         let numBits: number = minBits;
-        while (this._bits[this._readIndex++]) {
+        while (bits[this._readIndex++]) {
             result += 1 << numBits;
             numBits++;
         }
         while (numBits > 0) {
             numBits--;
-            if (this._bits[this._readIndex++]) {
+            if (bits[this._readIndex++]) {
                 result += 1 << numBits;
             }
         }
@@ -342,16 +345,29 @@ class BitFieldReader {
 
 class BitFieldWriter {
     private _index: number = 0;
-    private _bits: number[] = [];
+    private _bits: Uint8Array = new Uint8Array(1024);
 
     public clear() {
         this._index = 0;
     }
 
+    private _ensureCapacity(additional: number): void {
+        const required = this._index + additional;
+        if (required > this._bits.length) {
+            let newSize = this._bits.length * 2;
+            while (newSize < required) newSize *= 2;
+            const newBits = new Uint8Array(newSize);
+            newBits.set(this._bits.subarray(0, this._index));
+            this._bits = newBits;
+        }
+    }
+
     public write(bitCount: number, value: number): void {
+        this._ensureCapacity(bitCount);
+        const bits = this._bits;
         bitCount--;
         while (bitCount >= 0) {
-            this._bits[this._index++] = (value >>> bitCount) & 1;
+            bits[this._index++] = (value >>> bitCount) & 1;
             bitCount--;
         }
     }
@@ -360,15 +376,18 @@ class BitFieldWriter {
         if (value < minValue) throw new Error("value out of bounds");
         value -= minValue;
         let numBits: number = minBits;
+        // Estimate max bits needed: log2(value) + minBits + some extra
+        this._ensureCapacity(32 + minBits);
+        const bits = this._bits;
         while (value >= (1 << numBits)) {
-            this._bits[this._index++] = 1;
+            bits[this._index++] = 1;
             value -= 1 << numBits;
             numBits++;
         }
-        this._bits[this._index++] = 0;
+        bits[this._index++] = 0;
         while (numBits > 0) {
             numBits--;
-            this._bits[this._index++] = (value >>> numBits) & 1;
+            bits[this._index++] = (value >>> numBits) & 1;
         }
     }
 
@@ -391,15 +410,15 @@ class BitFieldWriter {
     }
 
     public concat(other: BitFieldWriter): void {
-        for (let i: number = 0; i < other._index; i++) {
-            this._bits[this._index++] = other._bits[i];
-        }
+        this._ensureCapacity(other._index);
+        this._bits.set(other._bits.subarray(0, other._index), this._index);
+        this._index += other._index;
     }
 
     public encodeBase64(buffer: number[]): number[] {
-
+        const bits = this._bits;
         for (let i: number = 0; i < this._index; i += 6) {
-            const value: number = (this._bits[i] << 5) | (this._bits[i + 1] << 4) | (this._bits[i + 2] << 3) | (this._bits[i + 3] << 2) | (this._bits[i + 4] << 1) | this._bits[i + 5];
+            const value: number = (bits[i] << 5) | (bits[i + 1] << 4) | (bits[i + 2] << 3) | (bits[i + 3] << 2) | (bits[i + 4] << 1) | bits[i + 5];
             buffer.push(base64IntToCharCode[value]);
         }
         return buffer;
@@ -9453,28 +9472,44 @@ export class Synth {
             }
 
             // Post processing:
+            const masterGainSquared = song.masterGain * song.masterGain;
+            const compressionThreshold = song.compressionThreshold;
+            const limitThreshold = song.limitThreshold;
+            const compressionRatio = song.compressionRatio;
+            const limitRatio = song.limitRatio;
+            const oneMinusCompressionRatio = 1.0 - compressionRatio;
+            const oneMinusLimitThreshold = 1.0 - limitThreshold;
+
             for (let i: number = bufferIndex; i < runEnd; i++) {
                 // A compressor/limiter.
-                const sampleL = outputDataL[i] * song.masterGain * song.masterGain;
-                const sampleR = outputDataR[i] * song.masterGain * song.masterGain;
+                const sampleL = outputDataL[i] * masterGainSquared;
+                const sampleR = outputDataR[i] * masterGainSquared;
                 const absL: number = sampleL < 0.0 ? -sampleL : sampleL;
                 const absR: number = sampleR < 0.0 ? -sampleR : sampleR;
                 const abs: number = absL > absR ? absL : absR;
-                this.song.inVolumeCap = (this.song.inVolumeCap > abs ? this.song.inVolumeCap : abs); // Analytics, spit out raw input volume
-                // Determines which formula to use. 0 when volume is between [0, compressionThreshold], 1 when between (compressionThreshold, limitThreshold], 2 above
-                const limitRange: number = (+(abs > song.compressionThreshold)) + (+(abs > song.limitThreshold));
-                // Determine the target amplification based on the range of the curve
-                const limitTarget: number =
-                    (+(limitRange == 0)) * (((abs + 1 - song.compressionThreshold) * 0.8 + 0.25) * song.compressionRatio + 1.05 * (1 - song.compressionRatio))
-                    + (+(limitRange == 1)) * (1.05)
-                    + (+(limitRange == 2)) * (1.05 * ((abs + 1 - song.limitThreshold) * song.limitRatio + (1 - song.limitThreshold)));
-                // Move the limit towards the target
-                limit += ((limitTarget - limit) * (limit < limitTarget ? limitRise : limitDecay));
-                const limitedVolume = volume / (limit >= 1 ? limit * 1.05 : limit * 0.8 + 0.25);
-                outputDataL[i] = sampleL * limitedVolume;
-                outputDataR[i] = sampleR * limitedVolume;
+                if (abs > this.song.inVolumeCap) this.song.inVolumeCap = abs; // Analytics, spit out raw input volume
 
-                this.song.outVolumeCap = (this.song.outVolumeCap > abs * limitedVolume ? this.song.outVolumeCap : abs * limitedVolume); // Analytics, spit out limited output volume
+                // Determine the target amplification based on the range of the curve
+                let limitTarget: number;
+                if (abs <= compressionThreshold) {
+                    limitTarget = ((abs + 1.0 - compressionThreshold) * 0.8 + 0.25) * compressionRatio + 1.05 * oneMinusCompressionRatio;
+                } else if (abs <= limitThreshold) {
+                    limitTarget = 1.05;
+                } else {
+                    limitTarget = 1.05 * ((abs + 1.0 - limitThreshold) * limitRatio + oneMinusLimitThreshold);
+                }
+
+                // Move the limit towards the target
+                limit += (limitTarget - limit) * (limit < limitTarget ? limitRise : limitDecay);
+
+                const limitedVolume = volume / (limit >= 1.0 ? limit * 1.05 : limit * 0.8 + 0.25);
+                const outL = sampleL * limitedVolume;
+                const outR = sampleR * limitedVolume;
+                outputDataL[i] = outL;
+                outputDataR[i] = outR;
+
+                const absOut = abs * limitedVolume;
+                if (absOut > this.song.outVolumeCap) this.song.outVolumeCap = absOut; // Analytics, spit out limited output volume
             }
 
             bufferIndex += runLength;
@@ -11746,9 +11781,14 @@ export class Synth {
                         inputSample += waveB * unisonSign;
                     }
                 }
-                const sample = applyFilters(inputSample * volumeScale, initialFilterInput1, initialFilterInput2, filterCount, filters);
-                initialFilterInput2 = initialFilterInput1;
-                initialFilterInput1 = inputSample * volumeScale;
+                let sample: number;
+                if (filterCount === 0) {
+                    sample = inputSample * volumeScale;
+                } else {
+                    sample = applyFilters(inputSample * volumeScale, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                    initialFilterInput2 = initialFilterInput1;
+                    initialFilterInput1 = inputSample * volumeScale;
+                }
                 phaseDeltaA *= phaseDeltaScaleA;
                 phaseDeltaB *= phaseDeltaScaleB;
                 const output = sample * expression;
@@ -11813,6 +11853,9 @@ export class Synth {
         }
 
         const stopIndex: number = bufferIndex + roundedSamplesPerTick;
+        let invPhaseDeltaA: number = 1.0 / phaseDeltaA;
+        let invPhaseDeltaB: number = 1.0 / phaseDeltaB;
+
         for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
 
             phaseA += phaseDeltaA;
@@ -11837,19 +11880,30 @@ export class Synth {
                 const phaseRatioB: number = phaseB - phaseBInt;
                 nextWaveIntegralA += (wave[indexA + 1] - nextWaveIntegralA) * phaseRatioA;
                 nextWaveIntegralB += (wave[indexB + 1] - nextWaveIntegralB) * phaseRatioB;
-                waveA = (nextWaveIntegralA - prevWaveIntegralA) / phaseDeltaA;
-                waveB = (nextWaveIntegralB - prevWaveIntegralB) / phaseDeltaB;
+                waveA = (nextWaveIntegralA - prevWaveIntegralA) * invPhaseDeltaA;
+                waveB = (nextWaveIntegralB - prevWaveIntegralB) * invPhaseDeltaB;
                 prevWaveIntegralA = nextWaveIntegralA;
                 prevWaveIntegralB = nextWaveIntegralB;
                 inputSample = waveA + waveB * unisonSign;
             }
 
-            const sample: number = applyFilters(inputSample * volumeScale, initialFilterInput1, initialFilterInput2, filterCount, filters);
-            initialFilterInput2 = initialFilterInput1;
-            initialFilterInput1 = inputSample * volumeScale;
+            let sample: number;
+            if (filterCount === 0) {
+                sample = inputSample * volumeScale;
+            } else {
+                sample = applyFilters(inputSample * volumeScale, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample * volumeScale;
+            }
 
-            phaseDeltaA *= phaseDeltaScaleA;
-            phaseDeltaB *= phaseDeltaScaleB;
+            if (phaseDeltaScaleA !== 1.0) {
+                phaseDeltaA *= phaseDeltaScaleA;
+                invPhaseDeltaA = 1.0 / phaseDeltaA;
+            }
+            if (phaseDeltaScaleB !== 1.0) {
+                phaseDeltaB *= phaseDeltaScaleB;
+                invPhaseDeltaB = 1.0 / phaseDeltaB;
+            }
 
             const output: number = sample * expression;
             expression += expressionDelta;
@@ -11902,6 +11956,9 @@ export class Synth {
         prevWaveIntegralB += (wave[indexB + 1] - prevWaveIntegralB) * phaseRatioB;
 
         const stopIndex: number = bufferIndex + roundedSamplesPerTick;
+        let invPhaseDeltaA: number = 1.0 / phaseDeltaA;
+        let invPhaseDeltaB: number = 1.0 / phaseDeltaB;
+
         for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
 
             phaseA += phaseDeltaA;
@@ -11917,18 +11974,29 @@ export class Synth {
             const phaseRatioB: number = phaseB - phaseBInt;
             nextWaveIntegralA += (wave[indexA + 1] - nextWaveIntegralA) * phaseRatioA;
             nextWaveIntegralB += (wave[indexB + 1] - nextWaveIntegralB) * phaseRatioB;
-            const waveA: number = (nextWaveIntegralA - prevWaveIntegralA) / phaseDeltaA;
-            const waveB: number = (nextWaveIntegralB - prevWaveIntegralB) / phaseDeltaB;
+            const waveA: number = (nextWaveIntegralA - prevWaveIntegralA) * invPhaseDeltaA;
+            const waveB: number = (nextWaveIntegralB - prevWaveIntegralB) * invPhaseDeltaB;
             prevWaveIntegralA = nextWaveIntegralA;
             prevWaveIntegralB = nextWaveIntegralB;
 
             const inputSample: number = waveA + waveB * unisonSign;
-            const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-            initialFilterInput2 = initialFilterInput1;
-            initialFilterInput1 = inputSample;
+            let sample: number;
+            if (filterCount === 0) {
+                sample = inputSample;
+            } else {
+                sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample;
+            }
 
-            phaseDeltaA *= phaseDeltaScaleA;
-            phaseDeltaB *= phaseDeltaScaleB;
+            if (phaseDeltaScaleA !== 1.0) {
+                phaseDeltaA *= phaseDeltaScaleA;
+                invPhaseDeltaA = 1.0 / phaseDeltaA;
+            }
+            if (phaseDeltaScaleB !== 1.0) {
+                phaseDeltaB *= phaseDeltaScaleB;
+                invPhaseDeltaB = 1.0 / phaseDeltaB;
+            }
 
             const output: number = sample * expression;
             expression += expressionDelta;
@@ -12041,9 +12109,14 @@ export class Synth {
             pickedStringSource += sampleList.join(" + ");
 
             pickedStringSource += `) * expression;
-					const sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-					initialFilterInput2 = initialFilterInput1;
-					initialFilterInput1 = inputSample;
+					let sample;
+					if (filterCount === 0) {
+						sample = inputSample;
+					} else {
+						sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+						initialFilterInput2 = initialFilterInput1;
+						initialFilterInput1 = inputSample;
+					}
 					data[sampleIndex] += sample;
 					
 					expression += expressionDelta;
@@ -12339,13 +12412,17 @@ export class Synth {
 					const distortionReverse = 1.0 - distortion;
 					const distortionNextInput = sample * distortionDrive;
 					sample = distortionNextOutput;
-					distortionNextOutput = distortionNextInput / (distortionReverse * Math.abs(distortionNextInput) + distortion);
+					const absNextInput = distortionNextInput < 0 ? -distortionNextInput : distortionNextInput;
+					distortionNextOutput = distortionNextInput / (distortionReverse * absNextInput + distortion);
 					distortionFractionalInput1 = distortionFractionalDelayG1 * distortionNextInput + distortionPrevInput - distortionFractionalDelayG1 * distortionFractionalInput1;
 					distortionFractionalInput2 = distortionFractionalDelayG2 * distortionNextInput + distortionPrevInput - distortionFractionalDelayG2 * distortionFractionalInput2;
 					distortionFractionalInput3 = distortionFractionalDelayG3 * distortionNextInput + distortionPrevInput - distortionFractionalDelayG3 * distortionFractionalInput3;
-					const distortionOutput1 = distortionFractionalInput1 / (distortionReverse * Math.abs(distortionFractionalInput1) + distortion);
-					const distortionOutput2 = distortionFractionalInput2 / (distortionReverse * Math.abs(distortionFractionalInput2) + distortion);
-					const distortionOutput3 = distortionFractionalInput3 / (distortionReverse * Math.abs(distortionFractionalInput3) + distortion);
+					const absFracInput1 = distortionFractionalInput1 < 0 ? -distortionFractionalInput1 : distortionFractionalInput1;
+					const absFracInput2 = distortionFractionalInput2 < 0 ? -distortionFractionalInput2 : distortionFractionalInput2;
+					const absFracInput3 = distortionFractionalInput3 < 0 ? -distortionFractionalInput3 : distortionFractionalInput3;
+					const distortionOutput1 = distortionFractionalInput1 / (distortionReverse * absFracInput1 + distortion);
+					const distortionOutput2 = distortionFractionalInput2 / (distortionReverse * absFracInput2 + distortion);
+					const distortionOutput3 = distortionFractionalInput3 / (distortionReverse * absFracInput3 + distortion);
 					distortionNextOutput += distortionOutput1 * distortionNextOutputWeight1 + distortionOutput2 * distortionNextOutputWeight2 + distortionOutput3 * distortionNextOutputWeight3;
 					sample += distortionOutput1 * distortionPrevOutputWeight1 + distortionOutput2 * distortionPrevOutputWeight2 + distortionOutput3 * distortionPrevOutputWeight3;
 					sample *= distortionOversampleCompensation;
@@ -12712,6 +12789,9 @@ export class Synth {
         const applyFilters: Function = Synth.applyFilters;
 
         const stopIndex: number = bufferIndex + roundedSamplesPerTick;
+        let invPhaseDeltaA: number = 1.0 / phaseDeltaA;
+        let invPhaseDeltaB: number = 1.0 / phaseDeltaB;
+
         for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
 
             const sawPhaseA: number = phaseA % 1;
@@ -12725,45 +12805,56 @@ export class Synth {
             // This is a PolyBLEP, which smooths out discontinuities at any frequency to reduce aliasing. 
             if (!instrumentState.aliases) {
                 if (sawPhaseA < phaseDeltaA) {
-                    var t = sawPhaseA / phaseDeltaA;
+                    var t = sawPhaseA * invPhaseDeltaA;
                     pulseWaveA += (t + t - t * t - 1) * 0.5;
                 } else if (sawPhaseA > 1.0 - phaseDeltaA) {
-                    var t = (sawPhaseA - 1.0) / phaseDeltaA;
+                    var t = (sawPhaseA - 1.0) * invPhaseDeltaA;
                     pulseWaveA += (t + t + t * t + 1) * 0.5;
                 }
                 if (sawPhaseB < phaseDeltaA) {
-                    var t = sawPhaseB / phaseDeltaA;
+                    var t = sawPhaseB * invPhaseDeltaA;
                     pulseWaveA -= (t + t - t * t - 1) * 0.5;
                 } else if (sawPhaseB > 1.0 - phaseDeltaA) {
-                    var t = (sawPhaseB - 1.0) / phaseDeltaA;
+                    var t = (sawPhaseB - 1.0) * invPhaseDeltaA;
                     pulseWaveA -= (t + t + t * t + 1) * 0.5;
                 }
 
                 if (sawPhaseC < phaseDeltaB) {
-                    var t = sawPhaseC / phaseDeltaB;
+                    var t = sawPhaseC * invPhaseDeltaB;
                     pulseWaveB += (t + t - t * t - 1) * 0.5;
                 } else if (sawPhaseC > 1.0 - phaseDeltaB) {
-                    var t = (sawPhaseC - 1.0) / phaseDeltaB;
+                    var t = (sawPhaseC - 1.0) * invPhaseDeltaB;
                     pulseWaveB += (t + t + t * t + 1) * 0.5;
                 }
                 if (sawPhaseD < phaseDeltaB) {
-                    var t = sawPhaseD / phaseDeltaB;
+                    var t = sawPhaseD * invPhaseDeltaB;
                     pulseWaveB -= (t + t - t * t - 1) * 0.5;
                 } else if (sawPhaseD > 1.0 - phaseDeltaB) {
-                    var t = (sawPhaseD - 1.0) / phaseDeltaB;
+                    var t = (sawPhaseD - 1.0) * invPhaseDeltaB;
                     pulseWaveB -= (t + t + t * t + 1) * 0.5;
                 }
             }
 
             const inputSample: number = pulseWaveA + pulseWaveB * unisonSign;
-            const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-            initialFilterInput2 = initialFilterInput1;
-            initialFilterInput1 = inputSample;
+            let sample: number;
+            if (filterCount === 0) {
+                sample = inputSample;
+            } else {
+                sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample;
+            }
 
             phaseA += phaseDeltaA;
             phaseB += phaseDeltaB;
-            phaseDeltaA *= phaseDeltaScaleA;
-            phaseDeltaB *= phaseDeltaScaleB;
+            if (phaseDeltaScaleA !== 1.0) {
+                phaseDeltaA *= phaseDeltaScaleA;
+                invPhaseDeltaA = 1.0 / phaseDeltaA;
+            }
+            if (phaseDeltaScaleB !== 1.0) {
+                phaseDeltaB *= phaseDeltaScaleB;
+                invPhaseDeltaB = 1.0 / phaseDeltaB;
+            }
             pulseWidth += pulseWidthDelta;
 
             const output: number = sample * expression;
@@ -12864,9 +12955,14 @@ export class Synth {
 			delayIndex++;
 
 			const inputSample: number = supersawSample - delaySample * shape;
-			const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-			initialFilterInput2 = initialFilterInput1;
-			initialFilterInput1 = inputSample;
+			let sample: number;
+			if (filterCount === 0) {
+				sample = inputSample;
+			} else {
+				sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+				initialFilterInput2 = initialFilterInput1;
+				initialFilterInput1 = inputSample;
+			}
 
 			phaseDelta *= phaseDeltaScale;
 			dynamism += dynamismDelta;
@@ -12919,15 +13015,20 @@ export class Synth {
 				// INSERT OPERATOR COMPUTATION HERE
 				const fmOutput = (/*operator#Scaled*/); // CARRIER OUTPUTS
 				
-			const inputSample = fmOutput;
-			const sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-			initialFilterInput2 = initialFilterInput1;
-			initialFilterInput1 = inputSample;
+			let sample;
+			if (filterCount === 0) {
+				sample = fmOutput;
+			} else {
+				const inputSample = fmOutput;
+				sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+				initialFilterInput2 = initialFilterInput1;
+				initialFilterInput1 = inputSample;
+			}
 				
 				feedbackMult += feedbackDelta;
 				operator#OutputMult += operator#OutputDelta;
 				operator#Phase += operator#PhaseDelta;
-			operator#PhaseDelta *= operator#PhaseDeltaScale;
+			if (operator#PhaseDeltaScale !== 1.0) operator#PhaseDelta *= operator#PhaseDeltaScale;
 			
 			const output = sample * expression;
 			expression += expressionDelta;
@@ -13003,9 +13104,14 @@ export class Synth {
                 noiseSampleB += (waveSampleB - noiseSampleB) * pitchRelativefilterB;
     
                 const inputSample: number = noiseSampleA + noiseSampleB * unisonSign;
-                const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-                initialFilterInput2 = initialFilterInput1;
-                initialFilterInput1 = inputSample;
+                let sample: number;
+                if (filterCount === 0) {
+                    sample = inputSample;
+                } else {
+                    sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                    initialFilterInput2 = initialFilterInput1;
+                    initialFilterInput1 = inputSample;
+                }
     
                 phaseA += phaseDeltaA;
                 phaseB += phaseDeltaB;
@@ -13089,9 +13195,14 @@ export class Synth {
 
 
             const inputSample: number = noiseSampleA + noiseSampleB * unisonSign;
-            const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-            initialFilterInput2 = initialFilterInput1;
-            initialFilterInput1 = inputSample;
+            let sample: number;
+            if (filterCount === 0) {
+                sample = inputSample;
+            } else {
+                sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample;
+            }
 
             phaseA += phaseDeltaA;
 			phaseB += phaseDeltaB;
@@ -13146,9 +13257,14 @@ export class Synth {
             noiseSample += (wave[index + 1] - noiseSample) * phaseRatio;
 
             const inputSample: number = noiseSample;
-            const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-            initialFilterInput2 = initialFilterInput1;
-            initialFilterInput1 = inputSample;
+            let sample: number;
+            if (filterCount === 0) {
+                sample = inputSample;
+            } else {
+                sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample;
+            }
 
             phase += phaseDelta;
             phaseDelta *= phaseDeltaScale;
@@ -13480,20 +13596,32 @@ export class Synth {
             const b0: number = filter.b0;
             const b1: number = filter.b1;
             const b2: number = filter.b2;
-            sample = b0 * sample + b1 * input1 + b2 * input2 - a1 * output1 - a2 * output2;
-            filter.a1 = a1 + filter.a1Delta;
-            filter.a2 = a2 + filter.a2Delta;
+            const nextSample: number = b0 * sample + b1 * input1 + b2 * input2 - a1 * output1 - a2 * output2;
+
+            const a1Delta = filter.a1Delta;
+            if (a1Delta !== 0) filter.a1 = a1 + a1Delta;
+            const a2Delta = filter.a2Delta;
+            if (a2Delta !== 0) filter.a2 = a2 + a2Delta;
+
             if (filter.useMultiplicativeInputCoefficients) {
-                filter.b0 = b0 * filter.b0Delta;
-                filter.b1 = b1 * filter.b1Delta;
-                filter.b2 = b2 * filter.b2Delta;
+                const b0Delta = filter.b0Delta;
+                if (b0Delta !== 1.0) filter.b0 = b0 * b0Delta;
+                const b1Delta = filter.b1Delta;
+                if (b1Delta !== 1.0) filter.b1 = b1 * b1Delta;
+                const b2Delta = filter.b2Delta;
+                if (b2Delta !== 1.0) filter.b2 = b2 * b2Delta;
             } else {
-                filter.b0 = b0 + filter.b0Delta;
-                filter.b1 = b1 + filter.b1Delta;
-                filter.b2 = b2 + filter.b2Delta;
+                const b0Delta = filter.b0Delta;
+                if (b0Delta !== 0) filter.b0 = b0 + b0Delta;
+                const b1Delta = filter.b1Delta;
+                if (b1Delta !== 0) filter.b1 = b1 + b1Delta;
+                const b2Delta = filter.b2Delta;
+                if (b2Delta !== 0) filter.b2 = b2 + b2Delta;
             }
+
             filter.output2 = output1;
-            filter.output1 = sample;
+            filter.output1 = nextSample;
+            sample = nextSample;
             // Updating the input values is waste if the next filter doesn't exist...
             input2 = output2;
             input1 = output1;
