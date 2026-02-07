@@ -12,7 +12,7 @@ import { CustomFilterPrompt } from "./CustomFilterPrompt";
 import { InstrumentExportPrompt } from "./InstrumentExportPrompt";
 import { InstrumentImportPrompt } from "./InstrumentImportPrompt";
 import { EditorConfig, isMobile, prettyNumber, Preset, PresetCategory } from "./EditorConfig";
-import { EuclideanRhythmPrompt } from "./EuclidgenRhythmPrompt";
+import { AlgorithmicRhythmPrompt } from "./AlgorithmicRhythmPrompt";
 import { AdvancedChordPrompt } from "./AdvancedChordPrompt";
 import { ArpeggioGeneratorPrompt } from "./ArpeggioGeneratorPrompt";
 import { ExportPrompt } from "./ExportPrompt";
@@ -793,7 +793,7 @@ export class SongEditor {
         option({ value: "transposeDown" }, "Move Notes Down (- or ⇧-)"),
         option({ value: "moveNotesSideways" }, "Move All Notes Sideways... (W)"),
 	    option({ value: "advancedChordCreator" }, "Advanced Chord Creator..."),
-	    option({ value: "generateEuclideanRhythm" }, "Generate Euclidean Rhythm... (E)"),
+	    option({ value: "generateAlgorithmicRhythm" }, "Algorithmic Rhythm Generator... (E)"),
 	    option({ value: "generateArpeggio" }, "Generate Arpeggio... (⇧G)"),
         option({ value: "beatsPerBar" }, "Change Beats Per Bar... (⇧B)"),
         option({ value: "barCount" }, "Change Song Length... (L)"),
@@ -2105,8 +2105,8 @@ export class SongEditor {
                 case "addExternal":
                     this.prompt = new AddSamplesPrompt(this._doc);
                     break;
-                case "generateEuclideanRhythm":
-                    this.prompt = new EuclideanRhythmPrompt(this._doc);
+                case "generateAlgorithmicRhythm":
+                    this.prompt = new AlgorithmicRhythmPrompt(this._doc);
                     break;
                 case "advancedChordCreator":
                     this.prompt = new AdvancedChordPrompt(this._doc);
@@ -4022,8 +4022,8 @@ export class SongEditor {
                     if (!instrument.eqFilterType && this._doc.channel < this._doc.song.pitchChannelCount + this._doc.song.noiseChannelCount)
                         this._openPrompt("customEQFilterSettings");
                 } else if (needControlForShortcuts == (event.ctrlKey || event.metaKey)) {
-                    // EUCLEDIAN RHYTHM SHORTCUT (E)
-                    this._openPrompt("generateEuclideanRhythm");
+                    // ALGORITHMIC RHYTHM SHORTCUT (E)
+                    this._openPrompt("generateAlgorithmicRhythm");
                     event.preventDefault();
                     break;
 			    }
@@ -5092,8 +5092,8 @@ export class SongEditor {
             case "limiterSettings":
                 this._openPrompt("limiterSettings");
                 break;
-            case "generateEuclideanRhythm":
-                this._openPrompt("generateEuclideanRhythm");
+            case "generateAlgorithmicRhythm":
+                this._openPrompt("generateAlgorithmicRhythm");
                 break;
             case "advancedChordCreator":
                 this._openPrompt("advancedChordCreator");
