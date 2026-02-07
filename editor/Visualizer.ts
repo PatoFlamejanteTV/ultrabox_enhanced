@@ -38,9 +38,9 @@ export class Visualizer {
             if (this._analyzer) {
                 this._analyzer.destroy();
                 this._analyzer = null;
-                this._audioCtx = null;
-                this._source = null;
             }
+            this._audioCtx = null;
+            this._source = null;
         }
     }
 
