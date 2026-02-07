@@ -17,3 +17,7 @@
 ## 2026-02-07 - [Inner-Loop & BitField Optimization]
 **Optimization:** Refactored `BitField` to use `Uint8Array`, optimized `distortion` and `PWM` loops to avoid `Math.abs` and redundant divisions.
 **Result:** Stable at ~125x-130x real-time.
+
+## 2026-02-07 - [PR Feedback Tweaks]
+**Optimization:** Cached `inVolumeCap` and `outVolumeCap` in post-processing loop; improved `BitFieldWriter` capacity check to copy only used data.
+**Result:** Peak performance ~136.6x real-time.

@@ -9480,6 +9480,9 @@ export class Synth {
             const oneMinusCompressionRatio = 1.0 - compressionRatio;
             const oneMinusLimitThreshold = 1.0 - limitThreshold;
 
+            let inCap = this.song.inVolumeCap;
+            let outCap = this.song.outVolumeCap;
+
             for (let i: number = bufferIndex; i < runEnd; i++) {
                 // A compressor/limiter.
                 const sampleL = outputDataL[i] * masterGainSquared;
@@ -9487,7 +9490,7 @@ export class Synth {
                 const absL: number = sampleL < 0.0 ? -sampleL : sampleL;
                 const absR: number = sampleR < 0.0 ? -sampleR : sampleR;
                 const abs: number = absL > absR ? absL : absR;
-                if (abs > this.song.inVolumeCap) this.song.inVolumeCap = abs; // Analytics, spit out raw input volume
+                if (abs > inCap) inCap = abs; // Analytics, spit out raw input volume
 
                 // Determine the target amplification based on the range of the curve
                 let limitTarget: number;
@@ -9509,8 +9512,10 @@ export class Synth {
                 outputDataR[i] = outR;
 
                 const absOut = abs * limitedVolume;
-                if (absOut > this.song.outVolumeCap) this.song.outVolumeCap = absOut; // Analytics, spit out limited output volume
+                if (absOut > outCap) outCap = absOut; // Analytics, spit out limited output volume
             }
+            this.song.inVolumeCap = inCap;
+            this.song.outVolumeCap = outCap;
 
             bufferIndex += runLength;
 
