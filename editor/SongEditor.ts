@@ -52,6 +52,8 @@ import { ChangeTempo, ChangeKeyOctave, ChangeChorus, ChangeEchoDelay, ChangeEcho
 
 import { TrackEditor } from "./TrackEditor";
 import { oscilloscopeCanvas } from "../global/Oscilloscope";
+import { Visualizer } from "./Visualizer";
+import { VisualizerModePrompt } from "./VisualizerModePrompt";
 import { VisualLoopControlsPrompt } from "./VisualLoopControlsPrompt";
 import { SampleLoadingStatusPrompt } from "./SampleLoadingStatusPrompt";
 import { AddSamplesPrompt } from "./AddSamplesPrompt";
@@ -828,6 +830,8 @@ export class SongEditor {
         option({ value: "showLetters" }, "Show Piano Keys"),
         option({ value: "displayVolumeBar" }, "Show Playback Volume"),
         option({ value: "showOscilloscope" }, "Show Oscilloscope"),
+        option({ value: "showVisualizer" }, "Show Visualizer"),
+        option({ value: "visualizerMode" }, "Visualizer Mode"),
         option({ value: "showSampleLoadingStatus" }, "Show Sample Loading Status"),
         option({ value: "showDescription" }, "Show Description"),
         option({ value: "layout" }, "Set Layout..."),
@@ -1102,6 +1106,11 @@ export class SongEditor {
     private readonly _globalOscscopeContainer: HTMLDivElement = div({ style: "height: 38px; margin-left: auto; margin-right: auto;" },
         this._globalOscscope.canvas
     );
+    private readonly _visualizerCanvas: HTMLCanvasElement = canvas({ width: 144, height: 100, style: `border: 2px solid ${ColorConfig.uiWidgetBackground}; position: static;`, id: "visualizer" });
+    private readonly _visualizer: Visualizer = new Visualizer(this._doc, this._visualizerCanvas);
+    private readonly _visualizerContainer: HTMLDivElement = div({ style: "height: 106px; margin-left: auto; margin-right: auto;" },
+        this._visualizerCanvas
+    );
     private readonly _customWaveDrawCanvas: CustomChipCanvas = new CustomChipCanvas(canvas({ width: 128, height: 52, style: "border:2px solid " + ColorConfig.uiWidgetBackground, id: "customWaveDrawCanvas" }), this._doc, (newArray: Float32Array) => new ChangeCustomWave(this._doc, newArray));
     private readonly _customWavePresetDrop: HTMLSelectElement = buildHeaderedOptions("Load Preset", select({ style: "width: 50%; height:1.5em; text-align: center; text-align-last: center;" }),
         Config.chipWaves.map(wave => wave.name)
@@ -1357,6 +1366,7 @@ export class SongEditor {
                 this._volumeSlider.container,
             ),
             this._globalOscscopeContainer,
+            this._visualizerContainer,
         ),
         this._menuArea,
         this._songSettingsArea,
@@ -2126,6 +2136,9 @@ export class SongEditor {
                 case "configureShortener":
                     this.prompt = new ShortenerConfigPrompt(this._doc);
                     break;
+                case "visualizerMode":
+                    this.prompt = new VisualizerModePrompt(this._doc);
+                    break;
                 default:
                     this.prompt = new TipPrompt(this._doc, promptName);
                     break;
@@ -2205,6 +2218,11 @@ export class SongEditor {
         this._volumeBarBox.style.display = this._doc.prefs.displayVolumeBar ? "" : "none";
         this._globalOscscopeContainer.style.display = this._doc.prefs.showOscilloscope ? "" : "none";
         this._doc.synth.oscEnabled = this._doc.prefs.showOscilloscope;
+        this._visualizerContainer.style.display = this._doc.prefs.showVisualizer ? "" : "none";
+        this._visualizer.setVisible(this._doc.prefs.showVisualizer, this._doc.synth.audioCtx, this._doc.synth.masterGain);
+        if (this._doc.prefs.showVisualizer) {
+            this._visualizer.setMode(this._doc.prefs.visualizerMode);
+        }
         this._sampleLoadingStatusContainer.style.display = this._doc.prefs.showSampleLoadingStatus ? "" : "none";
         this._instrumentCopyGroup.style.display = this._doc.prefs.instrumentCopyPaste ? "" : "none";
         this._instrumentExportGroup.style.display = this._doc.prefs.instrumentImportExport ? "" : "none";
@@ -2285,6 +2303,8 @@ export class SongEditor {
             (prefs.showLetters ? textOnIcon : textOffIcon) + "Show Piano Keys",
             (prefs.displayVolumeBar ? textOnIcon : textOffIcon) + "Show Playback Volume",
             (prefs.showOscilloscope ? textOnIcon : textOffIcon) + "Show Oscilloscope",
+            (prefs.showVisualizer ? textOnIcon : textOffIcon) + "Show Visualizer",
+            textSpacingIcon + "Visualizer Mode",
             (prefs.showSampleLoadingStatus ? textOnIcon : textOffIcon) + "Show Sample Loading Status",
             (prefs.showDescription ? textOnIcon : textOffIcon) + "Show Description",
             textSpacingIcon + "Set Layout...",
@@ -5167,6 +5187,12 @@ export class SongEditor {
                 break;
             case "showOscilloscope":
                 this._doc.prefs.showOscilloscope = !this._doc.prefs.showOscilloscope;
+                break;
+            case "showVisualizer":
+                this._doc.prefs.showVisualizer = !this._doc.prefs.showVisualizer;
+                break;
+            case "visualizerMode":
+                this._openPrompt("visualizerMode");
                 break;
             case "showDescription":
                 this._doc.prefs.showDescription = !this._doc.prefs.showDescription;
