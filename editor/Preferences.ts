@@ -77,7 +77,8 @@ export class Preferences {
 		this.notesFlashWhenPlayed = window.localStorage.getItem("notesFlashWhenPlayed") == "true";
 		this.showOscilloscope = window.localStorage.getItem("showOscilloscope") == "true";
 		this.showVisualizer = window.localStorage.getItem("showVisualizer") == "true";
-		this.visualizerMode = (+(<any>window.localStorage.getItem("visualizerMode"))) || 0;
+		const storedMode = parseInt(window.localStorage.getItem("visualizerMode") || "0", 10);
+		this.visualizerMode = isNaN(storedMode) ? 0 : storedMode;
 		this.showSampleLoadingStatus = window.localStorage.getItem("showSampleLoadingStatus") != "false";
 		this.showDescription = window.localStorage.getItem("showDescription") != "false";
 		this.showInstrumentScrollbars = window.localStorage.getItem("showInstrumentScrollbars") == "true";
