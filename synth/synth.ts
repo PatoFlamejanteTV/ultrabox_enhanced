@@ -2760,14 +2760,15 @@ export class Instrument {
         const relativePitch = pitch - basePitch;
         if (scale.offsets) {
             const ppo = scale.offsets.length;
-            const octave = Math.floor(relativePitch / ppo);
-            const noteIndex = ((relativePitch % ppo) + ppo) % ppo;
-            const i1 = Math.floor(noteIndex);
+            const octave = Math.floor(relativePitch / 12);
+            const semitonesIntoOctave = ((relativePitch % 12) + 12) % 12;
+            const position = semitonesIntoOctave / 12 * ppo;
+            const i1 = Math.floor(position);
             const i2 = (i1 + 1) % ppo;
-            const frac = noteIndex - i1;
+            const frac = position - i1;
             const o1 = scale.offsets[i1];
             let o2 = scale.offsets[i2];
-            if (i2 == 0) o2 += 12; // Handle octave wrap in offsets
+            if (i2 == 0) o2 = scale.offsets[ppo - 1] + (scale.offsets[1] - scale.offsets[0]); // Handle octave wrap in offsets
             const tunedRelative = octave * 12 + o1 + (o2 - o1) * frac;
             return basePitch + tunedRelative;
         } else if (scale.stepSize) {
@@ -7759,8 +7760,9 @@ class InstrumentState {
             }
 
             const basePitch: number = Config.keys[synth.song!.key].basePitch + (Config.pitchesPerOctave * synth.song!.octave); // TODO: What if there's a key change mid-song?
-            const freqStart: number = Instrument.frequencyFromPitch(Instrument.getTunedPitch(basePitch + 60, basePitch, synth.song!.scale)) * Math.pow(2.0, (Config.bitcrusherFreqRange - 1 - freqSettingStart) * Config.bitcrusherOctaveStep);
-            const freqEnd: number = Instrument.frequencyFromPitch(Instrument.getTunedPitch(basePitch + 60, basePitch, synth.song!.scale)) * Math.pow(2.0, (Config.bitcrusherFreqRange - 1 - freqSettingEnd) * Config.bitcrusherOctaveStep);
+            const tunedFreqBase = Instrument.frequencyFromPitch(Instrument.getTunedPitch(basePitch + 60, basePitch, synth.song!.scale));
+            const freqStart: number = tunedFreqBase * Math.pow(2.0, (Config.bitcrusherFreqRange - 1 - freqSettingStart) * Config.bitcrusherOctaveStep);
+            const freqEnd: number = tunedFreqBase * Math.pow(2.0, (Config.bitcrusherFreqRange - 1 - freqSettingEnd) * Config.bitcrusherOctaveStep);
             const phaseDeltaStart: number = Math.min(1.0, freqStart / samplesPerSecond);
             const phaseDeltaEnd: number = Math.min(1.0, freqEnd / samplesPerSecond);
             this.bitcrusherPhaseDelta = phaseDeltaStart;
