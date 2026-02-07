@@ -357,7 +357,7 @@ class BitFieldWriter {
             let newSize = this._bits.length * 2;
             while (newSize < required) newSize *= 2;
             const newBits = new Uint8Array(newSize);
-            newBits.set(this._bits);
+            newBits.set(this._bits.subarray(0, this._index));
             this._bits = newBits;
         }
     }
