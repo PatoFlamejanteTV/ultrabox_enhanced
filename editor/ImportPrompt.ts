@@ -142,6 +142,9 @@ export class ImportPrompt implements Prompt {
 				if (headerReader.hasMore()) headerReader.readUint16(); // format
 				if (headerReader.hasMore()) headerReader.readUint16(); // tracks
 				if (headerReader.hasMore()) midiTicksPerBeat = headerReader.readUint16();
+				if (headerReader.hasMore()) beatsPerBar = headerReader.readUint16();
+				if (headerReader.hasMore()) numSharps = headerReader.readInt8();
+				if (headerReader.hasMore()) isMinor = headerReader.readUint8() !== 0;
 			} else if (chunkType == FlmChunkType.track) {
 				const trackReader = reader.getReaderForNextBytes(chunkLength);
 				const channelIndex = instrumentNames.length;
@@ -167,6 +170,9 @@ export class ImportPrompt implements Prompt {
 
 				let currentMidiTick = 0;
 				let runningStatus = -1;
+				let currentProgram: number = 0;
+				let currentInstrumentVolume: number = 100;
+				let currentInstrumentPan: number = Config.panCenter;
 
 				while (trackReader.hasMore()) {
 					currentMidiTick += trackReader.readMidiVariableLength();
@@ -190,23 +196,39 @@ export class ImportPrompt implements Prompt {
 							if (velocity == 0) {
 								noteEvents[channelIndex].push({ midiTick: currentMidiTick, pitch, velocity: 0.0, program: -1, instrumentVolume: -1, instrumentPan: -1, on: false });
 							} else {
+								const volume: number = Math.max(0, Math.min(Config.volumeRange - 1, Math.round(
+									Synth.volumeMultToInstrumentVolume(midiVolumeToVolumeMult(currentInstrumentVolume))
+								)));
+								const pan: number = Math.max(0, Math.min(Config.panMax, Math.round(
+									((currentInstrumentPan - 64) / 63 + 1) * Config.panCenter
+								)));
 								noteEvents[channelIndex].push({
 									midiTick: currentMidiTick,
 									pitch,
 									velocity: Math.max(0.0, Math.min(1.0, (velocity + 14) / 90.0)),
-									program: 0,
-									instrumentVolume: 100,
-									instrumentPan: Config.panCenter,
+									program: currentProgram,
+									instrumentVolume: volume,
+									instrumentPan: pan,
 									on: true,
 								});
 							}
 						} break;
 						case MidiEventType.controlChange: {
-							trackReader.readMidi7Bits(); // message
-							trackReader.readMidi7Bits(); // value
+							const message = trackReader.readMidi7Bits();
+							const value = trackReader.readMidi7Bits();
+							if (message == MidiControlEventMessage.volumeMSB) {
+								currentInstrumentVolume = value;
+							} else if (message == MidiControlEventMessage.panMSB) {
+								currentInstrumentPan = value;
+							}
 						} break;
 						case MidiEventType.programChange: {
-							trackReader.readMidi7Bits(); // program
+							currentProgram = trackReader.readMidi7Bits();
+						} break;
+						case MidiEventType.keyPressure: {
+							/*const pitch =*/ trackReader.readMidi7Bits();
+							const pressure = trackReader.readMidi7Bits();
+							noteSizeEvents[channelIndex].push({ midiTick: currentMidiTick, size: pressure / 127.0 });
 						} break;
 						case MidiEventType.pitchBend: {
 							const lsb = trackReader.readMidi7Bits();
@@ -219,9 +241,13 @@ export class ImportPrompt implements Prompt {
 								const message = trackReader.readMidi7Bits();
 								const length = trackReader.readMidiVariableLength();
 								if (message == MidiMetaEventMessage.tempo) {
-									const microsecondsPerBeat = trackReader.readUint24();
-									tempoChanges.push({ midiTick: currentMidiTick, microsecondsPerBeat });
-									trackReader.skipBytes(length - 3);
+									if (length >= 3) {
+										const microsecondsPerBeat = trackReader.readUint24();
+										tempoChanges.push({ midiTick: currentMidiTick, microsecondsPerBeat });
+										trackReader.skipBytes(length - 3);
+									} else {
+										trackReader.skipBytes(length);
+									}
 								} else if (message == MidiMetaEventMessage.trackName) {
 									let trackName = "";
 									for (let i = 0; i < length; i++) trackName += String.fromCharCode(trackReader.readUint8());
@@ -234,7 +260,11 @@ export class ImportPrompt implements Prompt {
 								trackReader.skipBytes(length);
 							}
 						} break;
-						default: trackReader.skipBytes(1); break;
+						default: {
+							console.error("Unrecognized FLM/MIDI event status: " + eventStatus + " at tick " + currentMidiTick + " in track " + channelIndex);
+							// Abort track parsing to avoid desynchronization
+							while (trackReader.hasMore()) trackReader.readUint8();
+						} break;
 					}
 					if (currentMidiTick > globalMidiTick) globalMidiTick = currentMidiTick;
 				}
@@ -577,8 +607,10 @@ export class ImportPrompt implements Prompt {
 
 			let channelPresetValue: number | null = null;
 			const instrumentName = instrumentNames[midiChannel];
+			const isFLM = instrumentNames.length > 0;
 			if (instrumentName != null) {
-				const presetName = flmInstrumentMap[instrumentName];
+				const keyName = instrumentName.trim().toLowerCase();
+				const presetName = flmInstrumentMap[keyName] || flmInstrumentMap[instrumentName.trim()];
 				if (presetName != undefined) {
 					channelPresetValue = EditorConfig.nameToPresetValue(presetName);
 				}
@@ -589,7 +621,7 @@ export class ImportPrompt implements Prompt {
 			}
 			const channelPreset: Preset | null = (channelPresetValue == null) ? null : EditorConfig.valueToPreset(channelPresetValue);
 
-			const isDrumsetChannel: boolean = (midiChannel == 9) || (instrumentName != null && (instrumentName.includes("FPC") || instrumentName.includes("Drum") || instrumentName.includes("Kit")));
+			const isDrumsetChannel: boolean = (!isFLM && midiChannel == 9) || (instrumentName != null && (instrumentName.includes("FPC") || instrumentName.includes("Drum") || instrumentName.includes("Kit")));
 			const isNoiseChannel: boolean = isDrumsetChannel || (channelPreset != null && channelPreset.isNoise == true);
 			const isModChannel: boolean = (channelPreset != null && channelPreset.isMod == true);
 			const channelBasePitch: number = isNoiseChannel ? Config.spectrumBasePitch : Config.keys[key].basePitch;

@@ -6,15 +6,15 @@ export const enum FlmChunkType {
 }
 
 export const flmInstrumentMap: { [flmInstrument: string]: string } = {
-	"Sawer": "sawtooth lead 1",
-	"SuperSaw": "supersaw lead",
-	"Harmless": "FM organ",
-	"MiniSynth": "square lead",
-	"Transistor Bass": "FM bass",
-	"FPC": "standard drumset",
-	"FPC Kit": "standard drumset",
-	"DirectWave": "grand piano 1",
-	"Drum": "standard drumset",
-	"Drums": "standard drumset",
-	"Kit": "standard drumset",
+	"sawer": "sawtooth lead 1",
+	"supersaw": "supersaw lead",
+	"harmless": "FM organ",
+	"minisynth": "square lead",
+	"transistor bass": "FM bass",
+	"fpc": "standard drumset",
+	"fpc kit": "standard drumset",
+	"directwave": "grand piano 1",
+	"drum": "standard drumset",
+	"drums": "standard drumset",
+	"kit": "standard drumset",
 };
