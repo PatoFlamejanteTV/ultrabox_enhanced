@@ -285,7 +285,7 @@ export class CustomAlgorithmCanvas {
             ctx.fillRect(xindex * 24+12, yindex * 24, 2, 2);
 
             if (this.selected == -1) {
-                if (this.drawArray ?.[yindex] ?.[xindex] != undefined) {
+                if (this.drawArray?.[yindex]?.[xindex] != undefined) {
                     this.selected = this.drawArray[yindex][xindex];
                     ctx.fillRect(xindex * 24 + 12, yindex * 24, 12, 12);
                     ctx.fillStyle = ColorConfig.getComputed("--editor-background");
@@ -293,7 +293,7 @@ export class CustomAlgorithmCanvas {
                     this.mouseDown = false;
                 }
             } else {
-                if (this.drawArray ?.[yindex] ?.[xindex] != undefined) {
+                if (this.drawArray?.[yindex]?.[xindex] != undefined) {
 					if(this.mode == "feedback"){
                         const newmod = this.drawArray[yindex][xindex]
 						let check = this.feedback[newmod - 1].indexOf(this.selected);

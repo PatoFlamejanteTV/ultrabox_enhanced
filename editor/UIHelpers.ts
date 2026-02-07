@@ -8,7 +8,7 @@ const { select, option, optgroup } = HTML;
 
 export function buildOptions(menu: HTMLSelectElement, items: ReadonlyArray<string | number>): HTMLSelectElement {
     for (let index: number = 0; index < items.length; index++) {
-        menu.appendChild(option({ value: index }, items[index]));
+        menu.appendChild(option({ value: items[index] }, items[index]));
     }
     return menu;
 }
@@ -78,21 +78,21 @@ export function buildPresetOptions(isNoise: boolean, idSet: string): HTMLSelectE
         }
 
         // Need to re-sort some elements for readability. Can't just do this in the menu, because indices are saved in URLs and would get broken if the ordering actually changed.
-        if (category.name == "String Presets" && foundAny) {
+        if (category.name == "String Presets" && foundAny && group.children.length >= 12) {
 
             // Put violin 2 after violin 1
             let moveViolin2 = group.removeChild(group.children[11]);
             group.insertBefore(moveViolin2, group.children[1]);
         }
 
-        if (category.name == "Flute Presets" && foundAny) {
+        if (category.name == "Flute Presets" && foundAny && group.children.length >= 12) {
 
             // Put flute 2 after flute 1
             let moveFlute2 = group.removeChild(group.children[11]);
             group.insertBefore(moveFlute2, group.children[1]);
         }
 
-        if (category.name == "Keyboard Presets" && foundAny) {
+        if (category.name == "Keyboard Presets" && foundAny && group.children.length >= 11) {
 
             // Put grand piano 2 and 3 after grand piano 1
             let moveGrandPiano2 = group.removeChild(group.children[9]);
@@ -118,6 +118,9 @@ export function setSelectedValue(menu: HTMLSelectElement, value: number, isSelec
     const stringValue = value.toString();
     if (menu.value != stringValue) {
         menu.value = stringValue;
+        if (menu.value != stringValue && value >= 0 && value < menu.options.length) {
+            menu.selectedIndex = value;
+        }
 
         // Change select2 value, if this select is a member of that class.
         if (isSelect2) {
