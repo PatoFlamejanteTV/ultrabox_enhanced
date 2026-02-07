@@ -11813,48 +11813,82 @@ export class Synth {
         }
 
         const stopIndex: number = bufferIndex + roundedSamplesPerTick;
-        for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
-
-            phaseA += phaseDeltaA;
-            phaseB += phaseDeltaB;
-
-            let waveA: number;
-            let waveB: number;
-            let inputSample: number;
-
-            if (aliases) {
-                waveA = wave[(0 | phaseA) % waveLength];
-                waveB = wave[(0 | phaseB) % waveLength];
-                inputSample = waveA + waveB;
-            } else {
-                const phaseAInt: number = phaseA | 0;
-                const phaseBInt: number = phaseB | 0;
-                const indexA: number = phaseAInt % waveLength;
-                const indexB: number = phaseBInt % waveLength;
-                let nextWaveIntegralA: number = wave[indexA];
-                let nextWaveIntegralB: number = wave[indexB];
-                const phaseRatioA: number = phaseA - phaseAInt;
-                const phaseRatioB: number = phaseB - phaseBInt;
-                nextWaveIntegralA += (wave[indexA + 1] - nextWaveIntegralA) * phaseRatioA;
-                nextWaveIntegralB += (wave[indexB + 1] - nextWaveIntegralB) * phaseRatioB;
-                waveA = (nextWaveIntegralA - prevWaveIntegralA) / phaseDeltaA;
-                waveB = (nextWaveIntegralB - prevWaveIntegralB) / phaseDeltaB;
-                prevWaveIntegralA = nextWaveIntegralA;
-                prevWaveIntegralB = nextWaveIntegralB;
-                inputSample = waveA + waveB * unisonSign;
+		// Bolt optimization: If no filters are active, use a "fast path" loop that avoids
+		// the overhead of applyFilters() and associated state updates.
+        if (filterCount == 0) {
+            for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+                phaseA += phaseDeltaA;
+                phaseB += phaseDeltaB;
+                let inputSample: number;
+                if (aliases) {
+                    inputSample = wave[(0 | phaseA) % waveLength] + wave[(0 | phaseB) % waveLength];
+                } else {
+                    const phaseAInt: number = phaseA | 0;
+                    const phaseBInt: number = phaseB | 0;
+                    const indexA: number = phaseAInt % waveLength;
+                    const indexB: number = phaseBInt % waveLength;
+                    let nextWaveIntegralA: number = wave[indexA];
+                    let nextWaveIntegralB: number = wave[indexB];
+                    const phaseRatioA: number = phaseA - phaseAInt;
+                    const phaseRatioB: number = phaseB - phaseBInt;
+                    nextWaveIntegralA += (wave[indexA + 1] - nextWaveIntegralA) * phaseRatioA;
+                    nextWaveIntegralB += (wave[indexB + 1] - nextWaveIntegralB) * phaseRatioB;
+                    inputSample = (nextWaveIntegralA - prevWaveIntegralA) / phaseDeltaA + ((nextWaveIntegralB - prevWaveIntegralB) / phaseDeltaB) * unisonSign;
+                    prevWaveIntegralA = nextWaveIntegralA;
+                    prevWaveIntegralB = nextWaveIntegralB;
+                }
+                const currentInputSample: number = inputSample * volumeScale;
+                data[sampleIndex] += currentInputSample * expression;
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = currentInputSample;
+                phaseDeltaA *= phaseDeltaScaleA;
+                phaseDeltaB *= phaseDeltaScaleB;
+                expression += expressionDelta;
             }
+        } else {
+            for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
 
-            const sample: number = applyFilters(inputSample * volumeScale, initialFilterInput1, initialFilterInput2, filterCount, filters);
-            initialFilterInput2 = initialFilterInput1;
-            initialFilterInput1 = inputSample * volumeScale;
+                phaseA += phaseDeltaA;
+                phaseB += phaseDeltaB;
 
-            phaseDeltaA *= phaseDeltaScaleA;
-            phaseDeltaB *= phaseDeltaScaleB;
+                let waveA: number;
+                let waveB: number;
+                let inputSample: number;
 
-            const output: number = sample * expression;
-            expression += expressionDelta;
+                if (aliases) {
+                    waveA = wave[(0 | phaseA) % waveLength];
+                    waveB = wave[(0 | phaseB) % waveLength];
+                    inputSample = waveA + waveB;
+                } else {
+                    const phaseAInt: number = phaseA | 0;
+                    const phaseBInt: number = phaseB | 0;
+                    const indexA: number = phaseAInt % waveLength;
+                    const indexB: number = phaseBInt % waveLength;
+                    let nextWaveIntegralA: number = wave[indexA];
+                    let nextWaveIntegralB: number = wave[indexB];
+                    const phaseRatioA: number = phaseA - phaseAInt;
+                    const phaseRatioB: number = phaseB - phaseBInt;
+                    nextWaveIntegralA += (wave[indexA + 1] - nextWaveIntegralA) * phaseRatioA;
+                    nextWaveIntegralB += (wave[indexB + 1] - nextWaveIntegralB) * phaseRatioB;
+                    waveA = (nextWaveIntegralA - prevWaveIntegralA) / phaseDeltaA;
+                    waveB = (nextWaveIntegralB - prevWaveIntegralB) / phaseDeltaB;
+                    prevWaveIntegralA = nextWaveIntegralA;
+                    prevWaveIntegralB = nextWaveIntegralB;
+                    inputSample = waveA + waveB * unisonSign;
+                }
 
-            data[sampleIndex] += output;
+                const sample: number = applyFilters(inputSample * volumeScale, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample * volumeScale;
+
+                phaseDeltaA *= phaseDeltaScaleA;
+                phaseDeltaB *= phaseDeltaScaleB;
+
+                const output: number = sample * expression;
+                expression += expressionDelta;
+
+                data[sampleIndex] += output;
+            }
         }
 
         tone.phases[0] = phaseA / waveLength;
@@ -11902,38 +11936,64 @@ export class Synth {
         prevWaveIntegralB += (wave[indexB + 1] - prevWaveIntegralB) * phaseRatioB;
 
         const stopIndex: number = bufferIndex + roundedSamplesPerTick;
-        for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+        if (filterCount == 0) {
+            for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+                phaseA += phaseDeltaA;
+                phaseB += phaseDeltaB;
+                const phaseAInt: number = phaseA | 0;
+                const phaseBInt: number = phaseB | 0;
+                const indexA: number = phaseAInt % waveLength;
+                const indexB: number = phaseBInt % waveLength;
+                let nextWaveIntegralA: number = wave[indexA];
+                let nextWaveIntegralB: number = wave[indexB];
+                const phaseRatioA: number = phaseA - phaseAInt;
+                const phaseRatioB: number = phaseB - phaseBInt;
+                nextWaveIntegralA += (wave[indexA + 1] - nextWaveIntegralA) * phaseRatioA;
+                nextWaveIntegralB += (wave[indexB + 1] - nextWaveIntegralB) * phaseRatioB;
+                const inputSample: number = (nextWaveIntegralA - prevWaveIntegralA) / phaseDeltaA + ((nextWaveIntegralB - prevWaveIntegralB) / phaseDeltaB) * unisonSign;
+                prevWaveIntegralA = nextWaveIntegralA;
+                prevWaveIntegralB = nextWaveIntegralB;
+                data[sampleIndex] += inputSample * expression;
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample;
+                phaseDeltaA *= phaseDeltaScaleA;
+                phaseDeltaB *= phaseDeltaScaleB;
+                expression += expressionDelta;
+            }
+        } else {
+            for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
 
-            phaseA += phaseDeltaA;
-            phaseB += phaseDeltaB;
+                phaseA += phaseDeltaA;
+                phaseB += phaseDeltaB;
 
-            const phaseAInt: number = phaseA | 0;
-            const phaseBInt: number = phaseB | 0;
-            const indexA: number = phaseAInt % waveLength;
-            const indexB: number = phaseBInt % waveLength;
-            let nextWaveIntegralA: number = wave[indexA];
-            let nextWaveIntegralB: number = wave[indexB];
-            const phaseRatioA: number = phaseA - phaseAInt;
-            const phaseRatioB: number = phaseB - phaseBInt;
-            nextWaveIntegralA += (wave[indexA + 1] - nextWaveIntegralA) * phaseRatioA;
-            nextWaveIntegralB += (wave[indexB + 1] - nextWaveIntegralB) * phaseRatioB;
-            const waveA: number = (nextWaveIntegralA - prevWaveIntegralA) / phaseDeltaA;
-            const waveB: number = (nextWaveIntegralB - prevWaveIntegralB) / phaseDeltaB;
-            prevWaveIntegralA = nextWaveIntegralA;
-            prevWaveIntegralB = nextWaveIntegralB;
+                const phaseAInt: number = phaseA | 0;
+                const phaseBInt: number = phaseB | 0;
+                const indexA: number = phaseAInt % waveLength;
+                const indexB: number = phaseBInt % waveLength;
+                let nextWaveIntegralA: number = wave[indexA];
+                let nextWaveIntegralB: number = wave[indexB];
+                const phaseRatioA: number = phaseA - phaseAInt;
+                const phaseRatioB: number = phaseB - phaseBInt;
+                nextWaveIntegralA += (wave[indexA + 1] - nextWaveIntegralA) * phaseRatioA;
+                nextWaveIntegralB += (wave[indexB + 1] - nextWaveIntegralB) * phaseRatioB;
+                const waveA: number = (nextWaveIntegralA - prevWaveIntegralA) / phaseDeltaA;
+                const waveB: number = (nextWaveIntegralB - prevWaveIntegralB) / phaseDeltaB;
+                prevWaveIntegralA = nextWaveIntegralA;
+                prevWaveIntegralB = nextWaveIntegralB;
 
-            const inputSample: number = waveA + waveB * unisonSign;
-            const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-            initialFilterInput2 = initialFilterInput1;
-            initialFilterInput1 = inputSample;
+                const inputSample: number = waveA + waveB * unisonSign;
+                const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample;
 
-            phaseDeltaA *= phaseDeltaScaleA;
-            phaseDeltaB *= phaseDeltaScaleB;
+                phaseDeltaA *= phaseDeltaScaleA;
+                phaseDeltaB *= phaseDeltaScaleB;
 
-            const output: number = sample * expression;
-            expression += expressionDelta;
+                const output: number = sample * expression;
+                expression += expressionDelta;
 
-            data[sampleIndex] += output;
+                data[sampleIndex] += output;
+            }
         }
 
         tone.phases[0] = phaseA / waveLength;
@@ -12712,64 +12772,120 @@ export class Synth {
         const applyFilters: Function = Synth.applyFilters;
 
         const stopIndex: number = bufferIndex + roundedSamplesPerTick;
-        for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+        if (filterCount == 0) {
+            for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+                const sawPhaseA: number = phaseA % 1;
+                const sawPhaseB: number = (phaseA + pulseWidth) % 1;
+                const sawPhaseC: number = phaseB % 1;
+                const sawPhaseD: number = (phaseB + pulseWidth) % 1;
 
-            const sawPhaseA: number = phaseA % 1;
-            const sawPhaseB: number = (phaseA + pulseWidth) % 1;
-            const sawPhaseC: number = phaseB % 1;
-            const sawPhaseD: number = (phaseB + pulseWidth) % 1;
+                let pulseWaveA: number = sawPhaseB - sawPhaseA;
+                let pulseWaveB: number = sawPhaseD - sawPhaseC;
 
-            let pulseWaveA: number = sawPhaseB - sawPhaseA;
-            let pulseWaveB: number = sawPhaseD - sawPhaseC;
+                if (!instrumentState.aliases) {
+                    if (sawPhaseA < phaseDeltaA) {
+                        var t = sawPhaseA / phaseDeltaA;
+                        pulseWaveA += (t + t - t * t - 1) * 0.5;
+                    } else if (sawPhaseA > 1.0 - phaseDeltaA) {
+                        var t = (sawPhaseA - 1.0) / phaseDeltaA;
+                        pulseWaveA += (t + t + t * t + 1) * 0.5;
+                    }
+                    if (sawPhaseB < phaseDeltaA) {
+                        var t = sawPhaseB / phaseDeltaA;
+                        pulseWaveA -= (t + t - t * t - 1) * 0.5;
+                    } else if (sawPhaseB > 1.0 - phaseDeltaA) {
+                        var t = (sawPhaseB - 1.0) / phaseDeltaA;
+                        pulseWaveA -= (t + t + t * t + 1) * 0.5;
+                    }
 
-            // This is a PolyBLEP, which smooths out discontinuities at any frequency to reduce aliasing. 
-            if (!instrumentState.aliases) {
-                if (sawPhaseA < phaseDeltaA) {
-                    var t = sawPhaseA / phaseDeltaA;
-                    pulseWaveA += (t + t - t * t - 1) * 0.5;
-                } else if (sawPhaseA > 1.0 - phaseDeltaA) {
-                    var t = (sawPhaseA - 1.0) / phaseDeltaA;
-                    pulseWaveA += (t + t + t * t + 1) * 0.5;
-                }
-                if (sawPhaseB < phaseDeltaA) {
-                    var t = sawPhaseB / phaseDeltaA;
-                    pulseWaveA -= (t + t - t * t - 1) * 0.5;
-                } else if (sawPhaseB > 1.0 - phaseDeltaA) {
-                    var t = (sawPhaseB - 1.0) / phaseDeltaA;
-                    pulseWaveA -= (t + t + t * t + 1) * 0.5;
+                    if (sawPhaseC < phaseDeltaB) {
+                        var t = sawPhaseC / phaseDeltaB;
+                        pulseWaveB += (t + t - t * t - 1) * 0.5;
+                    } else if (sawPhaseC > 1.0 - phaseDeltaB) {
+                        var t = (sawPhaseC - 1.0) / phaseDeltaB;
+                        pulseWaveB += (t + t + t * t + 1) * 0.5;
+                    }
+                    if (sawPhaseD < phaseDeltaB) {
+                        var t = sawPhaseD / phaseDeltaB;
+                        pulseWaveB -= (t + t - t * t - 1) * 0.5;
+                    } else if (sawPhaseD > 1.0 - phaseDeltaB) {
+                        var t = (sawPhaseD - 1.0) / phaseDeltaB;
+                        pulseWaveB -= (t + t + t * t + 1) * 0.5;
+                    }
                 }
 
-                if (sawPhaseC < phaseDeltaB) {
-                    var t = sawPhaseC / phaseDeltaB;
-                    pulseWaveB += (t + t - t * t - 1) * 0.5;
-                } else if (sawPhaseC > 1.0 - phaseDeltaB) {
-                    var t = (sawPhaseC - 1.0) / phaseDeltaB;
-                    pulseWaveB += (t + t + t * t + 1) * 0.5;
-                }
-                if (sawPhaseD < phaseDeltaB) {
-                    var t = sawPhaseD / phaseDeltaB;
-                    pulseWaveB -= (t + t - t * t - 1) * 0.5;
-                } else if (sawPhaseD > 1.0 - phaseDeltaB) {
-                    var t = (sawPhaseD - 1.0) / phaseDeltaB;
-                    pulseWaveB -= (t + t + t * t + 1) * 0.5;
-                }
+                const inputSample: number = pulseWaveA + pulseWaveB * unisonSign;
+                data[sampleIndex] += inputSample * expression;
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample;
+
+                phaseA += phaseDeltaA;
+                phaseB += phaseDeltaB;
+                phaseDeltaA *= phaseDeltaScaleA;
+                phaseDeltaB *= phaseDeltaScaleB;
+                pulseWidth += pulseWidthDelta;
+                expression += expressionDelta;
             }
+        } else {
+            for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
 
-            const inputSample: number = pulseWaveA + pulseWaveB * unisonSign;
-            const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-            initialFilterInput2 = initialFilterInput1;
-            initialFilterInput1 = inputSample;
+                const sawPhaseA: number = phaseA % 1;
+                const sawPhaseB: number = (phaseA + pulseWidth) % 1;
+                const sawPhaseC: number = phaseB % 1;
+                const sawPhaseD: number = (phaseB + pulseWidth) % 1;
 
-            phaseA += phaseDeltaA;
-            phaseB += phaseDeltaB;
-            phaseDeltaA *= phaseDeltaScaleA;
-            phaseDeltaB *= phaseDeltaScaleB;
-            pulseWidth += pulseWidthDelta;
+                let pulseWaveA: number = sawPhaseB - sawPhaseA;
+                let pulseWaveB: number = sawPhaseD - sawPhaseC;
 
-            const output: number = sample * expression;
-            expression += expressionDelta;
+                // This is a PolyBLEP, which smooths out discontinuities at any frequency to reduce aliasing.
+                if (!instrumentState.aliases) {
+                    if (sawPhaseA < phaseDeltaA) {
+                        var t = sawPhaseA / phaseDeltaA;
+                        pulseWaveA += (t + t - t * t - 1) * 0.5;
+                    } else if (sawPhaseA > 1.0 - phaseDeltaA) {
+                        var t = (sawPhaseA - 1.0) / phaseDeltaA;
+                        pulseWaveA += (t + t + t * t + 1) * 0.5;
+                    }
+                    if (sawPhaseB < phaseDeltaA) {
+                        var t = sawPhaseB / phaseDeltaA;
+                        pulseWaveA -= (t + t - t * t - 1) * 0.5;
+                    } else if (sawPhaseB > 1.0 - phaseDeltaA) {
+                        var t = (sawPhaseB - 1.0) / phaseDeltaA;
+                        pulseWaveA -= (t + t + t * t + 1) * 0.5;
+                    }
 
-            data[sampleIndex] += output;
+                    if (sawPhaseC < phaseDeltaB) {
+                        var t = sawPhaseC / phaseDeltaB;
+                        pulseWaveB += (t + t - t * t - 1) * 0.5;
+                    } else if (sawPhaseC > 1.0 - phaseDeltaB) {
+                        var t = (sawPhaseC - 1.0) / phaseDeltaB;
+                        pulseWaveB += (t + t + t * t + 1) * 0.5;
+                    }
+                    if (sawPhaseD < phaseDeltaB) {
+                        var t = sawPhaseD / phaseDeltaB;
+                        pulseWaveB -= (t + t - t * t - 1) * 0.5;
+                    } else if (sawPhaseD > 1.0 - phaseDeltaB) {
+                        var t = (sawPhaseD - 1.0) / phaseDeltaB;
+                        pulseWaveB -= (t + t + t * t + 1) * 0.5;
+                    }
+                }
+
+                const inputSample: number = pulseWaveA + pulseWaveB * unisonSign;
+                const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample;
+
+                phaseA += phaseDeltaA;
+                phaseB += phaseDeltaB;
+                phaseDeltaA *= phaseDeltaScaleA;
+                phaseDeltaB *= phaseDeltaScaleB;
+                pulseWidth += pulseWidthDelta;
+
+                const output: number = sample * expression;
+                expression += expressionDelta;
+
+                data[sampleIndex] += output;
+            }
         }
 
         tone.phases[0] = phaseA;
@@ -12813,70 +12929,125 @@ export class Synth {
 		const applyFilters: Function = Synth.applyFilters;
 
 		const stopIndex: number = bufferIndex + runLength;
-		for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
-			// The phase initially starts at a zero crossing so apply
-			// the delta before first sample to get a nonzero value.
-			let phase: number = (phases[0] + phaseDelta) % 1.0;
-			let supersawSample: number = phase - 0.5 * (1.0 + (voiceCount - 1.0) * dynamism);
+		if (filterCount == 0) {
+			for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+				let phase: number = (phases[0] + phaseDelta) % 1.0;
+				let supersawSample: number = phase - 0.5 * (1.0 + (voiceCount - 1.0) * dynamism);
 
-			// This is a PolyBLEP, which smooths out discontinuities at any frequency to reduce aliasing. 
-            if (!instrumentState.aliases) {
-                if (phase < phaseDelta) {
-                    var t: number = phase / phaseDelta;
-                    supersawSample -= (t + t - t * t - 1) * 0.5;
-                } else if (phase > 1.0 - phaseDelta) {
-                    var t: number = (phase - 1.0) / phaseDelta;
-                    supersawSample -= (t + t + t * t + 1) * 0.5;
-                }
-            }
+				if (!instrumentState.aliases) {
+					if (phase < phaseDelta) {
+						var t: number = phase / phaseDelta;
+						supersawSample -= (t + t - t * t - 1) * 0.5;
+					} else if (phase > 1.0 - phaseDelta) {
+						var t: number = (phase - 1.0) / phaseDelta;
+						supersawSample -= (t + t + t * t + 1) * 0.5;
+					}
+				}
 
-			phases[0] = phase;
+				phases[0] = phase;
 
-			for (let i: number = 1; i < voiceCount; i++) {
-				const detunedPhaseDelta: number = phaseDelta * unisonDetunes[i];
+				for (let i: number = 1; i < voiceCount; i++) {
+					const detunedPhaseDelta: number = phaseDelta * unisonDetunes[i];
+					let phase: number = (phases[i] + detunedPhaseDelta) % 1.0;
+					supersawSample += phase * dynamism;
+
+					if (!instrumentState.aliases) {
+						if (phase < detunedPhaseDelta) {
+							const t: number = phase / detunedPhaseDelta;
+							supersawSample -= (t + t - t * t - 1) * 0.5 * dynamism;
+						} else if (phase > 1.0 - detunedPhaseDelta) {
+							const t: number = (phase - 1.0) / detunedPhaseDelta;
+							supersawSample -= (t + t + t * t + 1) * 0.5 * dynamism;
+						}
+					}
+					phases[i] = phase;
+				}
+
+				delayLine[delayIndex & delayBufferMask] = supersawSample;
+				const delaySampleTime: number = delayIndex - delayLength;
+				const lowerIndex: number = delaySampleTime | 0;
+				const upperIndex: number = lowerIndex + 1;
+				const delayRatio: number = delaySampleTime - lowerIndex;
+				const delaySample: number = delayLine[lowerIndex & delayBufferMask] + (delayLine[upperIndex & delayBufferMask] - delayLine[lowerIndex & delayBufferMask]) * delayRatio;
+				delayIndex++;
+
+				const inputSample: number = supersawSample - delaySample * shape;
+				data[sampleIndex] += inputSample * expression;
+				initialFilterInput2 = initialFilterInput1;
+				initialFilterInput1 = inputSample;
+
+				phaseDelta *= phaseDeltaScale;
+				dynamism += dynamismDelta;
+				shape += shapeDelta;
+				delayLength += delayLengthDelta;
+				expression += expressionDelta;
+			}
+		} else {
+			for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
 				// The phase initially starts at a zero crossing so apply
 				// the delta before first sample to get a nonzero value.
-				let phase: number = (phases[i] + detunedPhaseDelta) % 1.0;
-				supersawSample += phase * dynamism;
+				let phase: number = (phases[0] + phaseDelta) % 1.0;
+				let supersawSample: number = phase - 0.5 * (1.0 + (voiceCount - 1.0) * dynamism);
 
 				// This is a PolyBLEP, which smooths out discontinuities at any frequency to reduce aliasing. 
-                if (!instrumentState.aliases) {
-                    if (phase < detunedPhaseDelta) {
-                        const t: number = phase / detunedPhaseDelta;
-                        supersawSample -= (t + t - t * t - 1) * 0.5 * dynamism;
-                    } else if (phase > 1.0 - detunedPhaseDelta) {
-                        const t: number = (phase - 1.0) / detunedPhaseDelta;
-                        supersawSample -= (t + t + t * t + 1) * 0.5 * dynamism;
-                    }
-                }
+				if (!instrumentState.aliases) {
+					if (phase < phaseDelta) {
+						var t: number = phase / phaseDelta;
+						supersawSample -= (t + t - t * t - 1) * 0.5;
+					} else if (phase > 1.0 - phaseDelta) {
+						var t: number = (phase - 1.0) / phaseDelta;
+						supersawSample -= (t + t + t * t + 1) * 0.5;
+					}
+				}
 
-				phases[i] = phase;
+				phases[0] = phase;
+
+				for (let i: number = 1; i < voiceCount; i++) {
+					const detunedPhaseDelta: number = phaseDelta * unisonDetunes[i];
+					// The phase initially starts at a zero crossing so apply
+					// the delta before first sample to get a nonzero value.
+					let phase: number = (phases[i] + detunedPhaseDelta) % 1.0;
+					supersawSample += phase * dynamism;
+
+					// This is a PolyBLEP, which smooths out discontinuities at any frequency to reduce aliasing.
+					if (!instrumentState.aliases) {
+						if (phase < detunedPhaseDelta) {
+							const t: number = phase / detunedPhaseDelta;
+							supersawSample -= (t + t - t * t - 1) * 0.5 * dynamism;
+						} else if (phase > 1.0 - detunedPhaseDelta) {
+							const t: number = (phase - 1.0) / detunedPhaseDelta;
+							supersawSample -= (t + t + t * t + 1) * 0.5 * dynamism;
+						}
+					}
+
+					phases[i] = phase;
+				}
+
+				delayLine[delayIndex & delayBufferMask] = supersawSample;
+				const delaySampleTime: number = delayIndex - delayLength;
+				const lowerIndex: number = delaySampleTime | 0;
+				const upperIndex: number = lowerIndex + 1;
+				const delayRatio: number = delaySampleTime - lowerIndex;
+				const prevDelaySample: number = delayLine[lowerIndex & delayBufferMask];
+				const nextDelaySample: number = delayLine[upperIndex & delayBufferMask];
+				const delaySample: number = prevDelaySample + (nextDelaySample - prevDelaySample) * delayRatio;
+				delayIndex++;
+
+				const inputSample: number = supersawSample - delaySample * shape;
+				const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+				initialFilterInput2 = initialFilterInput1;
+				initialFilterInput1 = inputSample;
+
+				phaseDelta *= phaseDeltaScale;
+				dynamism += dynamismDelta;
+				shape += shapeDelta;
+				delayLength += delayLengthDelta;
+
+				const output: number = sample * expression;
+				expression += expressionDelta;
+
+				data[sampleIndex] += output;
 			}
-
-			delayLine[delayIndex & delayBufferMask] = supersawSample;
-			const delaySampleTime: number = delayIndex - delayLength;
-			const lowerIndex: number = delaySampleTime | 0;
-			const upperIndex: number = lowerIndex + 1;
-			const delayRatio: number = delaySampleTime - lowerIndex;
-			const prevDelaySample: number = delayLine[lowerIndex & delayBufferMask];
-			const nextDelaySample: number = delayLine[upperIndex & delayBufferMask];
-			const delaySample: number = prevDelaySample + (nextDelaySample - prevDelaySample) * delayRatio;
-			delayIndex++;
-
-			const inputSample: number = supersawSample - delaySample * shape;
-			const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-			initialFilterInput2 = initialFilterInput1;
-			initialFilterInput1 = inputSample;
-
-			phaseDelta *= phaseDeltaScale;
-			dynamism += dynamismDelta;
-			shape += shapeDelta;
-			delayLength += delayLengthDelta;
-
-			const output: number = sample * expression;
-			expression += expressionDelta;
-
-			data[sampleIndex] += output;
 		}
 
 		tone.phaseDeltas[0] = phaseDelta;
@@ -12915,25 +13086,44 @@ export class Synth {
 		const applyFilters = Synth.applyFilters;
 		
 		const stopIndex = bufferIndex + roundedSamplesPerTick;
-		for (let sampleIndex = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+		// Bolt optimization: If no filters are active, use a "fast path" loop that avoids
+		// the overhead of applyFilters() and associated state updates.
+		if (filterCount == 0) {
+			for (let sampleIndex = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
 				// INSERT OPERATOR COMPUTATION HERE
 				const fmOutput = (/*operator#Scaled*/); // CARRIER OUTPUTS
 				
-			const inputSample = fmOutput;
-			const sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-			initialFilterInput2 = initialFilterInput1;
-			initialFilterInput1 = inputSample;
+				data[sampleIndex] += fmOutput * expression;
 				
 				feedbackMult += feedbackDelta;
 				operator#OutputMult += operator#OutputDelta;
 				operator#Phase += operator#PhaseDelta;
-			operator#PhaseDelta *= operator#PhaseDeltaScale;
-			
-			const output = sample * expression;
-			expression += expressionDelta;
-
-			data[sampleIndex] += output;
+				operator#PhaseDelta *= operator#PhaseDeltaScale;
+				expression += expressionDelta;
+				initialFilterInput2 = initialFilterInput1;
+				initialFilterInput1 = fmOutput;
 			}
+		} else {
+			for (let sampleIndex = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+				// INSERT OPERATOR COMPUTATION HERE
+				const fmOutput = (/*operator#Scaled*/); // CARRIER OUTPUTS
+
+				const inputSample = fmOutput;
+				const sample = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+				initialFilterInput2 = initialFilterInput1;
+				initialFilterInput1 = inputSample;
+
+				feedbackMult += feedbackDelta;
+				operator#OutputMult += operator#OutputDelta;
+				operator#Phase += operator#PhaseDelta;
+				operator#PhaseDelta *= operator#PhaseDeltaScale;
+			
+				const output = sample * expression;
+				expression += expressionDelta;
+
+				data[sampleIndex] += output;
+			}
+		}
 			
 			tone.phases[#] = operator#Phase / ` + Config.sineWaveLength + `;
 			tone.phaseDeltas[#] = operator#PhaseDelta / ` + Config.sineWaveLength + `;
@@ -12995,27 +13185,45 @@ export class Synth {
             const pitchRelativefilterB: number = Math.min(1.0, phaseDeltaB * instrumentState.noisePitchFilterMult);
     
             const stopIndex: number = bufferIndex + runLength;
-            for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
-                const waveSampleA: number = wave[phaseA & phaseMask];
-                const waveSampleB: number = wave[phaseB & phaseMask];
-    
-                noiseSampleA += (waveSampleA - noiseSampleA) * pitchRelativefilterA;
-                noiseSampleB += (waveSampleB - noiseSampleB) * pitchRelativefilterB;
-    
-                const inputSample: number = noiseSampleA + noiseSampleB * unisonSign;
-                const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-                initialFilterInput2 = initialFilterInput1;
-                initialFilterInput1 = inputSample;
-    
-                phaseA += phaseDeltaA;
-                phaseB += phaseDeltaB;
-                phaseDeltaA *= phaseDeltaScaleA;
-                phaseDeltaB *= phaseDeltaScaleB;
-    
-                const output: number = sample * expression;
-                expression += expressionDelta;
-    
-                data[sampleIndex] += output;
+            if (filterCount == 0) {
+                for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+                    noiseSampleA += (wave[phaseA & phaseMask] - noiseSampleA) * pitchRelativefilterA;
+                    noiseSampleB += (wave[phaseB & phaseMask] - noiseSampleB) * pitchRelativefilterB;
+
+                    const inputSample: number = noiseSampleA + noiseSampleB * unisonSign;
+                    data[sampleIndex] += inputSample * expression;
+                    initialFilterInput2 = initialFilterInput1;
+                    initialFilterInput1 = inputSample;
+
+                    phaseA += phaseDeltaA;
+                    phaseB += phaseDeltaB;
+                    phaseDeltaA *= phaseDeltaScaleA;
+                    phaseDeltaB *= phaseDeltaScaleB;
+                    expression += expressionDelta;
+                }
+            } else {
+                for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+                    const waveSampleA: number = wave[phaseA & phaseMask];
+                    const waveSampleB: number = wave[phaseB & phaseMask];
+
+                    noiseSampleA += (waveSampleA - noiseSampleA) * pitchRelativefilterA;
+                    noiseSampleB += (waveSampleB - noiseSampleB) * pitchRelativefilterB;
+
+                    const inputSample: number = noiseSampleA + noiseSampleB * unisonSign;
+                    const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                    initialFilterInput2 = initialFilterInput1;
+                    initialFilterInput1 = inputSample;
+
+                    phaseA += phaseDeltaA;
+                    phaseB += phaseDeltaB;
+                    phaseDeltaA *= phaseDeltaScaleA;
+                    phaseDeltaB *= phaseDeltaScaleB;
+
+                    const output: number = sample * expression;
+                    expression += expressionDelta;
+
+                    data[sampleIndex] += output;
+                }
             }
     
             tone.phases[0] = phaseA / Config.chipNoiseLength;
@@ -13072,36 +13280,64 @@ export class Synth {
         const pitchRelativefilterB: number = Math.min(1.0, phaseDeltaB);
 
         const stopIndex: number = bufferIndex + runLength;
-        for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
-            const phaseAInt: number = phaseA | 0;
-			const phaseBInt: number = phaseB | 0;
-            const indexA: number = phaseAInt & phaseMask;
-			const indexB: number = phaseBInt & phaseMask;
-            let waveSampleA: number = wave[indexA];
-			let waveSampleB: number = wave[indexB];
-            const phaseRatioA: number = phaseA - phaseAInt;
-			const phaseRatioB: number = phaseB - phaseBInt;
-            waveSampleA += (wave[indexA + 1] - waveSampleA) * phaseRatioA;
-			waveSampleB += (wave[indexB + 1] - waveSampleB) * phaseRatioB;
+        if (filterCount == 0) {
+            for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+                const phaseAInt: number = phaseA | 0;
+                const phaseBInt: number = phaseB | 0;
+                const indexA: number = phaseAInt & phaseMask;
+                const indexB: number = phaseBInt & phaseMask;
+                let waveSampleA: number = wave[indexA];
+                let waveSampleB: number = wave[indexB];
+                const phaseRatioA: number = phaseA - phaseAInt;
+                const phaseRatioB: number = phaseB - phaseBInt;
+                waveSampleA += (wave[indexA + 1] - waveSampleA) * phaseRatioA;
+                waveSampleB += (wave[indexB + 1] - waveSampleB) * phaseRatioB;
 
-            noiseSampleA += (waveSampleA - noiseSampleA) * pitchRelativefilterA;
-			noiseSampleB += (waveSampleB - noiseSampleB) * pitchRelativefilterB;
+                noiseSampleA += (waveSampleA - noiseSampleA) * pitchRelativefilterA;
+                noiseSampleB += (waveSampleB - noiseSampleB) * pitchRelativefilterB;
 
+                const inputSample: number = noiseSampleA + noiseSampleB * unisonSign;
+                data[sampleIndex] += inputSample * expression;
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample;
 
-            const inputSample: number = noiseSampleA + noiseSampleB * unisonSign;
-            const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-            initialFilterInput2 = initialFilterInput1;
-            initialFilterInput1 = inputSample;
+                phaseA += phaseDeltaA;
+                phaseB += phaseDeltaB;
+                phaseDeltaA *= phaseDeltaScaleA;
+                phaseDeltaB *= phaseDeltaScaleB;
+                expression += expressionDelta;
+            }
+        } else {
+            for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+                const phaseAInt: number = phaseA | 0;
+                const phaseBInt: number = phaseB | 0;
+                const indexA: number = phaseAInt & phaseMask;
+                const indexB: number = phaseBInt & phaseMask;
+                let waveSampleA: number = wave[indexA];
+                let waveSampleB: number = wave[indexB];
+                const phaseRatioA: number = phaseA - phaseAInt;
+                const phaseRatioB: number = phaseB - phaseBInt;
+                waveSampleA += (wave[indexA + 1] - waveSampleA) * phaseRatioA;
+                waveSampleB += (wave[indexB + 1] - waveSampleB) * phaseRatioB;
 
-            phaseA += phaseDeltaA;
-			phaseB += phaseDeltaB;
-            phaseDeltaA *= phaseDeltaScaleA;
-			phaseDeltaB *= phaseDeltaScaleB;
+                noiseSampleA += (waveSampleA - noiseSampleA) * pitchRelativefilterA;
+                noiseSampleB += (waveSampleB - noiseSampleB) * pitchRelativefilterB;
 
-            const output: number = sample * expression;
-            expression += expressionDelta;
+                const inputSample: number = noiseSampleA + noiseSampleB * unisonSign;
+                const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample;
 
-            data[sampleIndex] += output;
+                phaseA += phaseDeltaA;
+                phaseB += phaseDeltaB;
+                phaseDeltaA *= phaseDeltaScaleA;
+                phaseDeltaB *= phaseDeltaScaleB;
+
+                const output: number = sample * expression;
+                expression += expressionDelta;
+
+                data[sampleIndex] += output;
+            }
         }
 
         tone.phases[0] = phaseA / Config.spectrumNoiseLength;
@@ -13138,25 +13374,43 @@ export class Synth {
         const phaseMask: number = Config.spectrumNoiseLength - 1;
 
         const stopIndex: number = bufferIndex + runLength;
-        for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
-            const phaseInt: number = phase | 0;
-            const index: number = phaseInt & phaseMask;
-            let noiseSample: number = wave[index];
-            const phaseRatio: number = phase - phaseInt;
-            noiseSample += (wave[index + 1] - noiseSample) * phaseRatio;
+        if (filterCount == 0) {
+            for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+                const phaseInt: number = phase | 0;
+                const index: number = phaseInt & phaseMask;
+                let noiseSample: number = wave[index];
+                const phaseRatio: number = phase - phaseInt;
+                noiseSample += (wave[index + 1] - noiseSample) * phaseRatio;
 
-            const inputSample: number = noiseSample;
-            const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
-            initialFilterInput2 = initialFilterInput1;
-            initialFilterInput1 = inputSample;
+                data[sampleIndex] += noiseSample * expression;
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = noiseSample;
 
-            phase += phaseDelta;
-            phaseDelta *= phaseDeltaScale;
+                phase += phaseDelta;
+                phaseDelta *= phaseDeltaScale;
+                expression += expressionDelta;
+            }
+        } else {
+            for (let sampleIndex: number = bufferIndex; sampleIndex < stopIndex; sampleIndex++) {
+                const phaseInt: number = phase | 0;
+                const index: number = phaseInt & phaseMask;
+                let noiseSample: number = wave[index];
+                const phaseRatio: number = phase - phaseInt;
+                noiseSample += (wave[index + 1] - noiseSample) * phaseRatio;
 
-            const output: number = sample * expression;
-            expression += expressionDelta;
+                const inputSample: number = noiseSample;
+                const sample: number = applyFilters(inputSample, initialFilterInput1, initialFilterInput2, filterCount, filters);
+                initialFilterInput2 = initialFilterInput1;
+                initialFilterInput1 = inputSample;
 
-            data[sampleIndex] += output;
+                phase += phaseDelta;
+                phaseDelta *= phaseDeltaScale;
+
+                const output: number = sample * expression;
+                expression += expressionDelta;
+
+                data[sampleIndex] += output;
+            }
         }
 
         tone.phases[0] = phase / Config.spectrumNoiseLength;
