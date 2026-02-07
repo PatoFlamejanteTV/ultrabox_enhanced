@@ -154,6 +154,8 @@ export interface BeepBoxOption {
 export interface Scale extends BeepBoxOption {
     readonly flags: ReadonlyArray<boolean>;
     readonly realName: string;
+    readonly offsets?: ReadonlyArray<number>;
+    readonly stepSize?: number;
 }
 
 export interface Key extends BeepBoxOption {
@@ -876,6 +878,17 @@ export class Config {
         { name: "Whole Tone", realName: "whole tone", flags: [true, false, true, false, true, false, true, false, true, false, true, false] }, // Whole Tone
         { name: "Octatonic", realName: "octatonic", flags: [true, false, true, true, false, true, true, false, true, true, false, true] }, // Octatonic
         { name: "Hexatonic", realName: "hexatonic", flags: [true, false, false, true, true, false, false, true, true, false, false, true] }, // Hexatonic
+		{ name: "Just Major (5-limit)", realName: "just major", flags: [true, false, true, false, true, true, false, true, false, true, false, true], offsets: [0, 1.1173, 2.0391, 3.1564, 3.8631, 4.9804, 6.0978, 7.0196, 8.1369, 8.8436, 9.9609, 10.8827] },
+		{ name: "Just Minor (5-limit)", realName: "just minor", flags: [true, false, true, true, false, true, false, true, true, false, true, false], offsets: [0, 1.1173, 2.0391, 3.1564, 3.8631, 4.9804, 5.9022, 7.0196, 8.1369, 8.8436, 10.1760, 10.8827] },
+		{ name: "Pythagorean (12-tone)", realName: "pythagorean", flags: [true, true, true, true, true, true, true, true, true, true, true, true], offsets: [0, 0.9022, 2.0391, 2.9413, 4.0782, 4.9804, 6.1173, 7.0196, 7.9218, 9.0587, 9.9609, 11.0978] },
+		{ name: "5-limit Tuning (Asymmetric)", realName: "5-limit asymmetric", flags: [true, true, true, true, true, true, true, true, true, true, true, true], offsets: [0, 1.1173, 1.8240, 3.1564, 3.8631, 4.9804, 5.9022, 7.0196, 8.1369, 8.8436, 10.1760, 10.8827] },
+		{ name: "Indian (Just 12-swara)", realName: "indian just", flags: [true, true, true, true, true, true, true, true, true, true, true, true], offsets: [0, 0.9022, 2.0391, 2.9413, 3.8631, 4.9804, 5.9022, 7.0196, 7.9218, 8.8436, 9.9609, 10.8827] },
+        { name: "Wendy Carlos Alpha", realName: "alpha", flags: [true, true, true, true, true, true, true, true, true, true, true, true], stepSize: 0.78 },
+        { name: "Wendy Carlos Beta", realName: "beta", flags: [true, true, true, true, true, true, true, true, true, true, true, true], stepSize: 0.638 },
+        { name: "Wendy Carlos Gamma", realName: "gamma", flags: [true, true, true, true, true, true, true, true, true, true, true, true], stepSize: 0.351 },
+        { name: "Guqin (Harmonics)", realName: "guqin", flags: [true, true, true, true, true, true, true], offsets: [0, 2.3117, 3.1564, 3.8631, 4.9804, 7.0196, 8.8436] },
+        { name: "7-limit (Septimal)", realName: "septimal", flags: [true, true, true, true, true, true, true, true, true, true, true, true], offsets: [0, 1.1173, 2.3117, 2.6687, 3.8631, 4.9804, 5.9022, 7.0196, 8.1369, 8.8436, 9.6883, 10.8827] },
+        { name: "Indian (22-Shruti)", realName: "22 shruti", flags: [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true], offsets: [0, 0.9022, 1.1173, 1.8240, 2.0391, 2.9413, 3.1564, 3.8631, 4.0782, 4.9804, 5.1955, 5.9022, 6.1173, 7.0196, 7.9218, 8.1369, 8.8436, 9.0587, 9.9609, 10.1760, 10.8827, 11.0978] },
         // TODO: remove these with 2.3
         // modbox
         { name: "No Dabbing (MB)", realName: "no dabbing", flags:[true, true, false, true, true, true, true, true, true, false, true, false] },
