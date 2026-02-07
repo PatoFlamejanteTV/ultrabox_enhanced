@@ -158,7 +158,7 @@ export class CustomChipCanvas {
                 instrument.customChipWaveIntegral[i] = cumulative;
             }
 
-            instrument.customChipWaveIntegral[64] = 0.0;
+            instrument.customChipWaveIntegral[instrument.customChipWaveIntegral.length - 1] = 0.0;
         }
 
     }
