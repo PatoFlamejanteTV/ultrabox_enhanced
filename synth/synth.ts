@@ -8584,8 +8584,9 @@ export class Synth {
 
     private tempMonoInstrumentSampleBuffer: Float32Array | null = null;
 
-    private audioCtx: any | null = null;
+    public audioCtx: any | null = null;
     private scriptNode: any | null = null;
+    public masterGain: any | null = null;
 
     public get playing(): boolean {
         return this.isPlayingSong;
@@ -8879,7 +8880,9 @@ export class Synth {
             this.scriptNode.onaudioprocess = this.audioProcessCallback;
             this.scriptNode.channelCountMode = 'explicit';
             this.scriptNode.channelInterpretation = 'speakers';
-            this.scriptNode.connect(this.audioCtx.destination);
+            this.masterGain = this.audioCtx.createGain();
+            this.scriptNode.connect(this.masterGain);
+            this.masterGain.connect(this.audioCtx.destination);
 
             this.computeDelayBufferSizes();
         }
@@ -8888,7 +8891,11 @@ export class Synth {
 
     private deactivateAudio(): void {
         if (this.audioCtx != null && this.scriptNode != null) {
-            this.scriptNode.disconnect(this.audioCtx.destination);
+            this.scriptNode.disconnect();
+            if (this.masterGain != null) {
+                this.masterGain.disconnect();
+                this.masterGain = null;
+            }
             this.scriptNode = null;
             if (this.audioCtx.close) this.audioCtx.close(); // firefox is missing this function?
             this.audioCtx = null;

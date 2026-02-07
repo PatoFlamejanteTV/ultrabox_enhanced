@@ -43,6 +43,7 @@
 	"dependencies": {
 		"@types/jquery": "^3.5.33",
 		"@types/select2": "^4.0.63",
+		"audiomotion-analyzer": "^4.5.4",
 		"imperative-html": "^0.1.0",
 		"select2": "^4.0.13"
 	}

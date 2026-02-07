@@ -39,6 +39,8 @@ export class Preferences {
 	public metronomeWhileRecording: boolean;
 	public notesFlashWhenPlayed: boolean;
 	public showOscilloscope: boolean;
+	public showVisualizer: boolean;
+	public visualizerMode: number;
 	public showSampleLoadingStatus: boolean;
 	public showDescription: boolean;
 	public showInstrumentScrollbars: boolean;
@@ -74,6 +76,9 @@ export class Preferences {
 		this.metronomeWhileRecording = window.localStorage.getItem("metronomeWhileRecording") != "false";
 		this.notesFlashWhenPlayed = window.localStorage.getItem("notesFlashWhenPlayed") == "true";
 		this.showOscilloscope = window.localStorage.getItem("showOscilloscope") == "true";
+		this.showVisualizer = window.localStorage.getItem("showVisualizer") == "true";
+		const storedMode = parseInt(window.localStorage.getItem("visualizerMode") || "0", 10);
+		this.visualizerMode = isNaN(storedMode) ? 0 : storedMode;
 		this.showSampleLoadingStatus = window.localStorage.getItem("showSampleLoadingStatus") != "false";
 		this.showDescription = window.localStorage.getItem("showDescription") != "false";
 		this.showInstrumentScrollbars = window.localStorage.getItem("showInstrumentScrollbars") == "true";
@@ -127,6 +132,8 @@ export class Preferences {
 		window.localStorage.setItem("metronomeWhileRecording", this.metronomeWhileRecording ? "true" : "false");
 		window.localStorage.setItem("notesFlashWhenPlayed", this.notesFlashWhenPlayed ? "true" : "false");
 		window.localStorage.setItem("showOscilloscope", this.showOscilloscope ? "true" : "false");
+		window.localStorage.setItem("showVisualizer", this.showVisualizer ? "true" : "false");
+		window.localStorage.setItem("visualizerMode", String(this.visualizerMode));
 		window.localStorage.setItem("showSampleLoadingStatus", this.showSampleLoadingStatus ? "true" : "false");
 		window.localStorage.setItem("showDescription", this.showDescription ? "true" : "false");
 		window.localStorage.setItem("showInstrumentScrollbars", this.showInstrumentScrollbars ? "true" : "false");
