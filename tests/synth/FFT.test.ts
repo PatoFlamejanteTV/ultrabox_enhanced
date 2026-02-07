@@ -1,0 +1,41 @@
+import { scaleElementsByFactor, fastFourierTransform, forwardRealFourierTransform } from '../../synth/FFT';
+
+describe('FFT', () => {
+  describe('scaleElementsByFactor', () => {
+    it('should scale elements by factor', () => {
+      const arr = [1, 2, 3, 4];
+      scaleElementsByFactor(arr, 2);
+      expect(arr).toEqual([2, 4, 6, 8]);
+    });
+  });
+
+  describe('fastFourierTransform', () => {
+    it('should throw error for non-power-of-2 length', () => {
+      const real = [1, 2, 3];
+      const imag = [0, 0, 0];
+      expect(() => fastFourierTransform(real, imag)).toThrow("FFT array length must be a power of 2.");
+    });
+
+    it('should throw error for short length', () => {
+      const real = [1, 2];
+      const imag = [0, 0];
+      expect(() => fastFourierTransform(real, imag)).toThrow("FFT array length must be at least 4.");
+    });
+
+    it('should compute FFT correctly for a simple case', () => {
+      const real = new Float32Array([1, 0, -1, 0]);
+      const imag = new Float32Array([0, 0, 0, 0]);
+      fastFourierTransform(real, imag);
+      expect(real[0]).toBeCloseTo(0);
+      expect(imag[0]).toBeCloseTo(0);
+    });
+  });
+
+  describe('forwardRealFourierTransform', () => {
+     it('should compute forward real FFT', () => {
+        const arr = new Float32Array([1, 0, -1, 0]);
+        forwardRealFourierTransform(arr);
+        expect(arr.length).toBe(4);
+     });
+  });
+});
