@@ -1,19 +1,10 @@
 import { jest } from '@jest/globals';
 
-/**
- * Installs in-memory mocks for browser globals used in tests.
- *
- * Sets window.localStorage and window.sessionStorage to Storage-like mocks, replaces
- * window.history with a controllable history implementation (pushState, replaceState,
- * back, forward, and state), substitutes window.location with a safe mock that avoids
- * JSDOM navigation side effects, and mocks window.requestAnimationFrame to schedule
- * callbacks via a zero-delay timer.
- */
 export function setupBrowserMocks() {
   const storageMock = () => {
     let store: { [key: string]: string } = {};
     return {
-      getItem: jest.fn((key: string) => store[key] || null),
+      getItem: jest.fn((key: string) => store[key] ?? null),
       setItem: jest.fn((key: string, value: any) => {
         store[key] = (value === null || value === undefined) ? "" : value.toString();
       }),

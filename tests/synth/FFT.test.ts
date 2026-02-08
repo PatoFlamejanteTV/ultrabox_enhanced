@@ -33,6 +33,8 @@ describe('FFT', () => {
       expect(imag[1]).toBeCloseTo(0); // imag part of X[1]
       expect(real[2]).toBeCloseTo(0); // Nyquist: sum(x * (-1)^n)
       expect(imag[2]).toBeCloseTo(0);
+      expect(real[3]).toBeCloseTo(2); // real part of X[3]
+      expect(imag[3]).toBeCloseTo(0); // imag part of X[3]
     });
   });
 
