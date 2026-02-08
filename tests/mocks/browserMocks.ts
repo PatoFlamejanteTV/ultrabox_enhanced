@@ -39,7 +39,7 @@ export function setupBrowserMocks() {
         historyState[currentIndex] = { state, title, url };
       }),
       get state() {
-        return historyState[currentIndex]?.state || null;
+        return historyState[currentIndex]?.state ?? null;
       },
       back: jest.fn(() => {
         if (currentIndex > 0) currentIndex--;
@@ -71,10 +71,12 @@ export function setupBrowserMocks() {
     // Just try to set the hash if possible.
     try {
         (window.location as any).hash = '';
-    } catch (e2) {}
+    } catch (e2) {
+        console.warn('browserMocks: unable to mock window.location', e2);
+    }
   }
 
   (window as any).requestAnimationFrame = jest.fn((callback: FrameRequestCallback) => {
-      return setTimeout(() => callback(0), 0);
+      return setTimeout(() => callback(performance.now()), 0);
   });
 }
