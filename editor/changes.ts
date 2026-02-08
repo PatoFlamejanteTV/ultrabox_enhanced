@@ -611,7 +611,7 @@ export class ChangeCustomWave extends Change {
     }
 }
 
-export class ChangeCustomAlgorythmorFeedback extends Change {
+export class ChangeCustomAlgorithmorFeedback extends Change {
     constructor(doc: SongDocument, newArray: number[][], carry: number, mode: string) {
         super();
         if (mode == "algorithm") {
