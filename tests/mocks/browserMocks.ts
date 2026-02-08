@@ -14,7 +14,9 @@ export function setupBrowserMocks() {
       removeItem: jest.fn((key: string) => {
         delete store[key];
       }),
-      length: 0,
+      get length() {
+        return Object.keys(store).length;
+      },
       key: jest.fn((index: number) => Object.keys(store)[index] || null),
     };
   };
@@ -59,14 +61,17 @@ export function setupBrowserMocks() {
     reload: jest.fn(),
   };
 
-  // Use a proxy or just define properties on the existing location if possible,
-  // but JSDOM location is tricky. Let's try to just mock the parts we use.
   try {
-      delete (window as any).location;
-      window.location = mockLocation as any;
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: mockLocation,
+    });
   } catch (e) {
-      // If delete fails, try to just override properties
-      (window.location as any).hash = '';
+    // If defineProperty fails, this environment might not allow it.
+    // Just try to set the hash if possible.
+    try {
+        (window.location as any).hash = '';
+    } catch (e2) {}
   }
 
   (window as any).requestAnimationFrame = jest.fn((callback: FrameRequestCallback) => {

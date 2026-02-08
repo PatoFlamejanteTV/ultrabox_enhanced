@@ -26,8 +26,13 @@ describe('FFT', () => {
       const real = new Float32Array([1, 0, -1, 0]);
       const imag = new Float32Array([0, 0, 0, 0]);
       fastFourierTransform(real, imag);
-      expect(real[0]).toBeCloseTo(0);
+      // For input [1, 0, -1, 0], the DFT is [0, 2, 0, 2].
+      expect(real[0]).toBeCloseTo(0); // DC component: sum(x)
       expect(imag[0]).toBeCloseTo(0);
+      expect(real[1]).toBeCloseTo(2); // real part of X[1]
+      expect(imag[1]).toBeCloseTo(0); // imag part of X[1]
+      expect(real[2]).toBeCloseTo(0); // Nyquist: sum(x * (-1)^n)
+      expect(imag[2]).toBeCloseTo(0);
     });
   });
 
